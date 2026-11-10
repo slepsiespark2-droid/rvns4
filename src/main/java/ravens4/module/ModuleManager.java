@@ -59,7 +59,6 @@ public class ModuleManager {
     public static AntiDebuff antiDebuff;
     public static NoFall noFall;
     public static PlayerESP playerESP;
-    public static Reduce reduce;
     public static SafeWalk safeWalk;
     public static KeepSprint keepSprint;
     public static Piercing piercing;
@@ -76,7 +75,6 @@ public class ModuleManager {
     public static ChatCommands chatCommands;
     public static BlockIn blockIn;
     public static Relationships relationships;
-    public static HideWindow hideWindow;
     public static Displace displace;
     public static Clutch clutch;
 
@@ -106,7 +104,6 @@ public class ModuleManager {
         this.addModule(ghostHand = new GhostHand());
         this.addModule(new RawInput());
         this.addModule(reach = new Reach());
-        this.addModule(reduce = new Reduce());
         this.addModule(new RodAimbot());
         this.addModule(velocity = new Velocity());
         this.addModule(wTap = new WTap());
@@ -147,7 +144,6 @@ public class ModuleManager {
         this.addModule(fastPlace = new FastPlace());
         this.addModule(new FakeLag());
         this.addModule(new Freecam());
-        this.addModule(hideWindow = new HideWindow());
         this.addModule(noFall = new NoFall());
         this.addModule(noRotate = new NoRotate());
         this.addModule(safeWalk = new SafeWalk());

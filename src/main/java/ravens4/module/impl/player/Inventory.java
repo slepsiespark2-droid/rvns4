@@ -15,7 +15,9 @@ import org.lwjgl.input.Mouse;
  * <ul>
  *   <li><b>Auto Hotkey</b> - while you hold (or click) left/right click, jumps to a chosen hotbar
  *   slot (1-9) and, when you let go, optionally returns to the slot you were on. Handy for e.g.
- *   keeping a pickaxe on slot 1 and swapping to a sword/torches/blocks only while clicking.</li>
+ *   keeping a pickaxe on slot 1 and swapping to a sword/torches/blocks only while clicking.
+ *   <b>Switch delay</b> waits that many ms before swapping to the hotkey and before swapping back
+ *   (0 = instant, higher = slower / more human-looking).</li>
  * </ul>
  */
 public class Inventory extends Module {
@@ -26,9 +28,13 @@ public class Inventory extends Module {
     private final ButtonSetting leftClick;
     private final ButtonSetting switchBack;
     private final SliderSetting selectedHotkey;
+    private final SliderSetting switchDelay;
 
     // slot we came from, or -1 when we are not currently overriding the slot
     private int previousSlot = -1;
+    // when the click was first seen held / first seen released (ms), -1 = not tracking
+    private long heldSince = -1;
+    private long releasedSince = -1;
 
     public Inventory() {
         super("Inventory", category.player);
@@ -37,6 +43,7 @@ public class Inventory extends Module {
         this.registerSetting(leftClick = new ButtonSetting("Left click", false));
         this.registerSetting(switchBack = new ButtonSetting("Switch back", true));
         this.registerSetting(selectedHotkey = new SliderSetting("Selected hotkey", 2, 1, 9, 1));
+        this.registerSetting(switchDelay = new SliderSetting("Switch delay", "ms", 0, 0, 500, 25));
     }
 
     @Override
@@ -46,6 +53,7 @@ public class Inventory extends Module {
         leftClick.setVisible(autoHotkey, this);
         switchBack.setVisible(autoHotkey, this);
         selectedHotkey.setVisible(autoHotkey, this);
+        switchDelay.setVisible(autoHotkey, this);
     }
 
     @Override
@@ -68,7 +76,7 @@ public class Inventory extends Module {
             return;
         }
         if (mc.thePlayer == null || mc.theWorld == null || mc.currentScreen != null) {
-            previousSlot = -1; // GUI opened / world left: forget the override, don't yank slots later
+            resetState(); // GUI opened / world left: forget the override, don't yank slots later
             return;
         }
         if (mode.getInput() == 0) {
@@ -78,32 +86,56 @@ public class Inventory extends Module {
 
     private void autoHotkey() {
         int target = (int) selectedHotkey.getInput() - 1;
+        long delay = (long) switchDelay.getInput();
+        long now = System.currentTimeMillis();
         boolean held = (rightClick.isToggled() && isDown(mc.gameSettings.keyBindUseItem))
                 || (leftClick.isToggled() && isDown(mc.gameSettings.keyBindAttack));
         int current = mc.thePlayer.inventory.currentItem;
 
         if (held) {
-            if (previousSlot == -1 && current != target) {
-                previousSlot = current;
-                Utils.switchSlot(target, true);
-            } else if (previousSlot != -1 && current != target) {
+            releasedSince = -1;
+            if (heldSince == -1) {
+                heldSince = now;
+            }
+            if (previousSlot == -1) {
+                if (current != target && now - heldSince >= delay) {
+                    previousSlot = current;
+                    Utils.switchSlot(target, true);
+                }
+            } else if (current != target) {
                 // player scrolled / pressed a number key while holding: respect it, stop overriding
                 previousSlot = -1;
             }
-        } else if (previousSlot != -1) {
-            if (switchBack.isToggled()) {
+        } else {
+            heldSince = -1;
+            if (previousSlot == -1) {
+                releasedSince = -1;
+                return;
+            }
+            if (!switchBack.isToggled()) {
+                resetState();
+                return;
+            }
+            if (releasedSince == -1) {
+                releasedSince = now;
+            }
+            if (now - releasedSince >= delay) {
                 restorePreviousSlot();
-            } else {
-                previousSlot = -1;
             }
         }
+    }
+
+    private void resetState() {
+        previousSlot = -1;
+        heldSince = -1;
+        releasedSince = -1;
     }
 
     private void restorePreviousSlot() {
         if (previousSlot != -1 && mc.thePlayer != null && previousSlot != mc.thePlayer.inventory.currentItem) {
             Utils.switchSlot(previousSlot, true);
         }
-        previousSlot = -1;
+        resetState();
     }
 
     private static boolean isDown(KeyBinding binding) {
