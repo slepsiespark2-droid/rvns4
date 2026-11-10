@@ -16,8 +16,8 @@ import org.lwjgl.input.Mouse;
  *   <li><b>Auto Hotkey</b> - while you hold (or click) left/right click, jumps to a chosen hotbar
  *   slot (1-9) and, when you let go, optionally returns to the slot you were on. Handy for e.g.
  *   keeping a pickaxe on slot 1 and swapping to a sword/torches/blocks only while clicking.
- *   <b>Switch delay</b> waits that many ms before swapping to the hotkey and before swapping back
- *   (0 = instant, higher = slower / more human-looking).</li>
+ *   <b>Switch delay</b> is how many ms it waits after you let go before swapping back from the
+ *   selected hotkey (1 ms = practically instant, higher = slower).</li>
  * </ul>
  */
 public class Inventory extends Module {
@@ -32,8 +32,7 @@ public class Inventory extends Module {
 
     // slot we came from, or -1 when we are not currently overriding the slot
     private int previousSlot = -1;
-    // when the click was first seen held / first seen released (ms), -1 = not tracking
-    private long heldSince = -1;
+    // when the click was first seen released (ms), -1 = not tracking
     private long releasedSince = -1;
 
     public Inventory() {
@@ -43,7 +42,7 @@ public class Inventory extends Module {
         this.registerSetting(leftClick = new ButtonSetting("Left click", false));
         this.registerSetting(switchBack = new ButtonSetting("Switch back", true));
         this.registerSetting(selectedHotkey = new SliderSetting("Selected hotkey", 2, 1, 9, 1));
-        this.registerSetting(switchDelay = new SliderSetting("Switch delay", "ms", 0, 0, 500, 25));
+        this.registerSetting(switchDelay = new SliderSetting("Switch delay", "ms", 1, 1, 1000, 1));
     }
 
     @Override
@@ -72,7 +71,22 @@ public class Inventory extends Module {
     // state is only updated later in the tick.
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.START || !this.isEnabled()) {
+        if (event.phase == TickEvent.Phase.START) {
+            update();
+        }
+    }
+
+    // also checked every frame, so the switch back follows the delay slider to the millisecond
+    // instead of only in 50 ms tick steps
+    @SubscribeEvent
+    public void onRenderTick(TickEvent.RenderTickEvent event) {
+        if (event.phase == TickEvent.Phase.START) {
+            update();
+        }
+    }
+
+    private void update() {
+        if (!this.isEnabled()) {
             return;
         }
         if (mc.thePlayer == null || mc.theWorld == null || mc.currentScreen != null) {
@@ -94,11 +108,8 @@ public class Inventory extends Module {
 
         if (held) {
             releasedSince = -1;
-            if (heldSince == -1) {
-                heldSince = now;
-            }
             if (previousSlot == -1) {
-                if (current != target && now - heldSince >= delay) {
+                if (current != target) {
                     previousSlot = current;
                     Utils.switchSlot(target, true);
                 }
@@ -107,7 +118,6 @@ public class Inventory extends Module {
                 previousSlot = -1;
             }
         } else {
-            heldSince = -1;
             if (previousSlot == -1) {
                 releasedSince = -1;
                 return;
@@ -119,7 +129,11 @@ public class Inventory extends Module {
             if (releasedSince == -1) {
                 releasedSince = now;
             }
-            if (now - releasedSince >= delay) {
+            // only the selected hotkey is paced by the slider: anything else the player switched
+            // to in the meantime is left alone
+            if (mc.thePlayer.inventory.currentItem != target) {
+                resetState();
+            } else if (now - releasedSince >= delay) {
                 restorePreviousSlot();
             }
         }
@@ -127,7 +141,6 @@ public class Inventory extends Module {
 
     private void resetState() {
         previousSlot = -1;
-        heldSince = -1;
         releasedSince = -1;
     }
 

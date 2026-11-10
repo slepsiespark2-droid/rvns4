@@ -44,8 +44,7 @@ public class ModuleManager {
     public static AutoClicker autoClicker;
     public static BlockHit blockHit;
     public static HitSelect hitSelect;
-    public static Backtrack098 backtrack;
-    public static Backtrack backtrackModule;
+    public static Backtrack backtrack;
     public static KnockbackDelay knockbackDelay;
     public static Reach reach;
     public static NoRotate noRotate;
@@ -97,8 +96,7 @@ public class ModuleManager {
         this.addModule(new ClickAssist());
         this.addModule(displace = new Displace());
         this.addModule(hitSelect = new HitSelect());
-        this.addModule(backtrack = new Backtrack098());
-        this.addModule(backtrackModule = new Backtrack());
+        this.addModule(backtrack = new Backtrack());
         this.addModule(killAura = new KillAura());
         this.addModule(knockbackDelay = new KnockbackDelay());
         this.addModule(new LagRange());
