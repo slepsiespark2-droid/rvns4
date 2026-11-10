@@ -69,6 +69,15 @@ public class Backtrack098 extends Module {
     private int lastMaxDelay = -1;
     private int rangeMissTicks;
 
+    // smoothed ESP position (the true position only changes once per received packet, this follows it every frame)
+    private double espX;
+    private double espY;
+    private double espZ;
+    private long espLastNanos;
+    private EntityLivingBase espTarget;
+    private boolean espActive;
+    private static final double ESP_SMOOTH_SECONDS = 0.045;
+
     private static final int RANGE_MISS_GRACE_TICKS = 3;
 
     public Backtrack098() {
@@ -284,9 +293,11 @@ public class Backtrack098 extends Module {
     @SubscribeEvent
     public void onRender3D(RenderWorldLastEvent event) {
         if (!Utils.nullCheck() || !shouldLagReach() || !shouldRender || target == null || !esp.isToggled()) {
+            espActive = false;
             return;
         }
         if (mc.gameSettings.thirdPersonView == 0 && !showInFirstPerson.isToggled()) {
+            espActive = false;
             return;
         }
 
@@ -362,9 +373,32 @@ public class Backtrack098 extends Module {
     }
 
     private void renderModern(float partialTicks) {
-        double x = trueX(target);
-        double y = trueY(target);
-        double z = trueZ(target);
+        double goalX = trueX(target);
+        double goalY = trueY(target);
+        double goalZ = trueZ(target);
+
+        // glide toward the true position every frame instead of jumping each time a packet arrives
+        long now = System.nanoTime();
+        double dx = goalX - espX;
+        double dy = goalY - espY;
+        double dz = goalZ - espZ;
+        if (!espActive || espTarget != target || dx * dx + dy * dy + dz * dz > 16.0) {
+            espX = goalX;
+            espY = goalY;
+            espZ = goalZ;
+            espTarget = target;
+            espActive = true;
+        } else {
+            double dt = Math.min((now - espLastNanos) / 1.0E9, 0.25);
+            double alpha = 1.0 - Math.exp(-dt / ESP_SMOOTH_SECONDS);
+            espX += dx * alpha;
+            espY += dy * alpha;
+            espZ += dz * alpha;
+        }
+        espLastNanos = now;
+        double x = espX;
+        double y = espY;
+        double z = espZ;
 
         AxisAlignedBB worldBox = target.getEntityBoundingBox().offset(x - target.posX, y - target.posY, z - target.posZ);
         Vec3 cameraPos = Utils.getCameraPos(partialTicks);

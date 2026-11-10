@@ -31,6 +31,8 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 public class AutoLadder extends Module {
     private final SliderSetting minimumFallDistance;
     private final ButtonSetting onlyWhileHoldingLadder;
+    private final ButtonSetting workWithBlockIn;
+    private final ButtonSetting workWithScaffold;
 
     // slot to return to once we are done, -1 = we have not switched
     private int previousSlot = -1;
@@ -54,6 +56,8 @@ public class AutoLadder extends Module {
         super("AutoLadder", category.player);
         this.registerSetting(minimumFallDistance = new SliderSetting("Minimum fall distance", " blocks", 4, 3, 20, 1));
         this.registerSetting(onlyWhileHoldingLadder = new ButtonSetting("Only while holding ladder", false));
+        this.registerSetting(workWithBlockIn = new ButtonSetting("Work with BlockIn", false));
+        this.registerSetting(workWithScaffold = new ButtonSetting("Work with Scaffold", false));
     }
 
     @Override
@@ -236,8 +240,17 @@ public class AutoLadder extends Module {
 
     private boolean isOtherBuilderActive() {
         Module scaffold = Module.getModule(Scaffold.class);
-        return (scaffold != null && scaffold.isEnabled())
-                || (ModuleManager.blockIn != null && ModuleManager.blockIn.isEnabled());
+        if (scaffold != null && scaffold.isEnabled()) {
+            // with "Work with Scaffold" only step aside while Scaffold is actually bridging
+            if (!workWithScaffold.isToggled() || !(scaffold instanceof Scaffold) || ((Scaffold) scaffold).running) {
+                return true;
+            }
+        }
+        if (ModuleManager.blockIn == null || !ModuleManager.blockIn.isEnabled()) {
+            return false;
+        }
+        // with "Work with BlockIn" only step aside while BlockIn is actually placing
+        return !workWithBlockIn.isToggled() || ModuleManager.blockIn.isPlacing();
     }
 
     private double minFall() {
