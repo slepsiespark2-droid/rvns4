@@ -10,11 +10,13 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 8
+          java-version: |
+            8
+            17
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 7.6.4
-      - run: gradle build --no-daemon
+      - run: gradle build --no-daemon -Porg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64
       - uses: actions/upload-artifact@v4
         with:
           name: jar
