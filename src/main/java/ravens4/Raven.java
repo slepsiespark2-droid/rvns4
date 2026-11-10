@@ -77,6 +77,7 @@ public class Raven {
         Runtime.getRuntime().addShutdownHook(new Thread(cachedExecutor::shutdown));
 
         ClientCommandHandler.instance.registerCommand(new KeyStrokeCommand());
+        ClientCommandHandler.instance.registerCommand(new ravens4.command.OracleKeyCommand());
 
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(new DebugHelper());

@@ -1,5 +1,6 @@
 package ravens4.command;
 
+import ravens4.command.impl.Ask;
 import ravens4.command.impl.Binds;
 import ravens4.command.impl.Bind;
 import ravens4.command.impl.Cname;
@@ -42,6 +43,7 @@ public class CommandManager {
         register(new Friend());
         register(new Enemy());
         register(new Prefix());
+        register(new Ask());
         register(trackCommand = new Track());
         register(new Profiles());
         register(new ShowAll());

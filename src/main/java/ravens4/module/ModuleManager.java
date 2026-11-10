@@ -45,6 +45,7 @@ public class ModuleManager {
     public static BlockHit blockHit;
     public static HitSelect hitSelect;
     public static Backtrack backtrack;
+    public static Oracle oracle;
     public static KnockbackDelay knockbackDelay;
     public static Reach reach;
     public static NoRotate noRotate;
@@ -138,6 +139,7 @@ public class ModuleManager {
         this.addModule(autoTool = new AutoTool());
         this.addModule(new Inventory());
         this.addModule(new AutoLadder());
+        this.addModule(oracle = new Oracle());
         this.addModule(bedAura = new BedAura());
         this.addModule(blink = new Blink());
         this.addModule(new DelayRemover());
