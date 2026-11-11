@@ -21,7 +21,7 @@ public class Ask extends Command {
         }
         if (input.argumentCount() == 1 && "clear".equalsIgnoreCase(input.getArgument(0))) {
             ModuleManager.oracle.clearMemory();
-            replyWithHeader("&7Oracle forgot the conversation.");
+            replyWithHeader("&7Oracle forgot the conversation and the chat it had seen (session memory wiped).");
             return;
         }
         String first = input.getArgument(0);
