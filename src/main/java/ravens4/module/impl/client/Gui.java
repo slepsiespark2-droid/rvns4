@@ -4,6 +4,7 @@ import net.minecraftforge.common.MinecraftForge;
 import ravens4.Raven;
 import ravens4.clickgui.ClickGui2;
 import ravens4.clickgui.ClickGui2Host;
+import ravens4.clickgui.PanelClickGui;
 import ravens4.module.Module;
 import ravens4.utility.ThemePalette;
 import ravens4.module.setting.Setting;
@@ -19,8 +20,9 @@ import java.util.List;
 public class Gui extends Module {
     private static final String[] GUI_FONT_OPTIONS = FontManager.getHudFontOptions();
     private static final String[] OUTLINE_THEME_OPTIONS = buildOutlineThemeOptions();
-    private static final String[] MODES = new String[]{"ClickGui", "ClickGui2"};
+    private static final String[] MODES = new String[]{"ClickGui", "ClickGui2", "Panel"};
     private static final int MODE_CLICKGUI2 = 1;
+    private static final int MODE_PANEL = 2;
     /** Last option: the former "Rainbow outlines" button (chroma outline on open / hovered categories). */
     private static final int OLD_RAINBOW_INDEX = OUTLINE_THEME_OPTIONS.length - 1;
 
@@ -72,8 +74,11 @@ public class Gui extends Module {
     @Override
     public void guiUpdate() {
         boolean clickGui2 = isClickGui2();
+        boolean panel = isPanel();
         for (Setting setting : clickGuiSettings) {
-            setting.setVisible(!clickGui2, this);
+            // the accent theme is shared with the Panel mode, everything else only belongs to the normal ClickGui
+            boolean accentOnly = setting == outlineTheme;
+            setting.setVisible(accentOnly ? !clickGui2 : (!clickGui2 && !panel), this);
         }
         for (Setting setting : clickGui2Settings) {
             setting.setVisible(clickGui2, this);
@@ -82,6 +87,10 @@ public class Gui extends Module {
 
     public static boolean isClickGui2() {
         return mode != null && (int) mode.getInput() == MODE_CLICKGUI2;
+    }
+
+    public static boolean isPanel() {
+        return mode != null && (int) mode.getInput() == MODE_PANEL;
     }
 
     /** Used when ClickGui2 fails at runtime. */
@@ -96,6 +105,11 @@ public class Gui extends Module {
         if (isClickGui2()) {
             if (Utils.nullCheck()) {
                 clickGui2Host.open();
+            }
+        }
+        else if (isPanel()) {
+            if (Utils.nullCheck()) {
+                mc.displayGuiScreen(PanelClickGui.get());
             }
         }
         else if (Utils.nullCheck() && mc.currentScreen != Raven.clickGui) {
