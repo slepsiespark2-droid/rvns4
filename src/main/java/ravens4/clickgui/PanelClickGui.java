@@ -20,6 +20,7 @@ import ravens4.module.setting.impl.SliderSetting;
 import ravens4.module.setting.impl.TextSetting;
 import ravens4.utility.RenderUtils;
 import ravens4.utility.ThemePalette;
+import ravens4.utility.font.FontManager;
 import ravens4.utility.font.RavenFontRenderer;
 import ravens4.utility.profile.Profile;
 import ravens4.utility.profile.ProfileManager;
@@ -29,10 +30,13 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -40,97 +44,72 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The "Panel" click GUI: one floating panel per module category plus a Configs panel, ported from the Atlas client.
- * Everything works with a single tap or click (no right or middle click needed), so it also works on a phone:
- * tap a header to fold it, drag a header to move it, tap a module to switch it on, tap its [+] to open its settings.
+ * The "Panel" click GUI, ported from the Atlas client: one dark rounded panel per category, a title with the number of
+ * modules that are on, an accent line under it, modules listed by name (with an accent tick and colour when on) and a
+ * "+" that unrolls their settings in place, plus a Configs panel and a small info bar at the bottom left.
+ *
+ * Works with single taps: tap a title to fold the panel (drag it to move it), tap a module to switch it,
+ * tap its "+" for the settings. A right click on a module opens its settings too, a middle click binds it.
  */
 public class PanelClickGui extends GuiScreen {
-    private static final float PANEL_W = 112f;
-    private static final float HEADER_H = 18f;
-    private static final float MODULE_H = 16f;
-    private static final float ROW_H = 14f;
-    private static final float SLIDER_H = 21f;
-    private static final float GAP = 8f;
-    private static final float SCROLLBAR_W = 5f;
+    private static final float WIDTH = 108.0F;
+    private static final float HEADER = 24.0F;
+    private static final float MODULE_H = 18.0F;
+    private static final float SETTING_H = 15.0F;
+    private static final float SLIDER_H = 22.0F;
+    private static final float RADIUS = 8.0F;
+    private static final int MAX_ROWS = 16;
 
-    private enum Kind {
-        HEADER, MODULE, EXPAND, BIND, BOOL, BUTTON, SLIDER, MODE, COLOR, TEXT, KEY, GROUP, CONFIG_LOAD, CONFIG_NAME, CONFIG_SAVE, SCROLL
+    private static final int BG = 0xC8121217;
+    private static final int SETTINGS_BG = 0x40000000;
+    private static final int TEXT = 0xFFE6E6EC;
+    private static final int DIM = 0xFF8E8E9A;
+    private static final int FAINT = 0xFF5E5E68;
+
+    private enum Kind { HEADER, MODULE, EXPAND, BIND, BOOL, BUTTON, NUM, MODE, COLOR, TEXT, KEY, GROUP, PROFILE, NAME, LOAD, SAVE, SCROLL }
+
+    private static final class Hit {
+        final Kind kind;
+        final Panel panel;
+        final Object target;
+        final float x1, y1, x2, y2;
+        float trackX, trackW;
+
+        Hit(Kind kind, Panel panel, Object target, float x1, float y1, float x2, float y2) {
+            this.kind = kind;
+            this.panel = panel;
+            this.target = target;
+            this.x1 = x1;
+            this.y1 = y1;
+            this.x2 = x2;
+            this.y2 = y2;
+        }
+
+        boolean contains(float x, float y) {
+            return x >= x1 && x <= x2 && y >= y1 && y <= y2;
+        }
     }
 
     private static final class Panel {
         final String title;
-        final Module.category category;
+        final List<Module> modules;
         final boolean configs;
-        final List<Module> modules = new ArrayList<Module>();
-        float x;
-        float y;
-        boolean collapsed = true;
+        float x, y;
+        boolean folded = true;
         float scroll;
         float maxScroll;
-        float bodyTop;
-        float bodyH;
-        float totalH;
+        float shownScroll;
+        float drawY, body, content, total;
+        float shownHeight = HEADER;
 
-        Panel(String title, Module.category category, boolean configs) {
+        Panel(String title, List<Module> modules, boolean configs) {
             this.title = title;
-            this.category = category;
+            this.modules = modules;
             this.configs = configs;
         }
-    }
 
-    private static final class Row {
-        final Kind kind;
-        final Module module;
-        final Setting setting;
-        final String label;
-        final float h;
-        final boolean child;
-
-        Row(Kind kind, Module module, Setting setting, String label, float h, boolean child) {
-            this.kind = kind;
-            this.module = module;
-            this.setting = setting;
-            this.label = label;
-            this.h = h;
-            this.child = child;
-        }
-    }
-
-    // where something was drawn this frame, used to find out what a click landed on
-    private static final class Hit {
-        final Kind kind;
-        final Panel panel;
-        final Module module;
-        final Setting setting;
-        final String label;
-        final float x;
-        final float y;
-        final float w;
-        final float h;
-        final float rx;
-        final float ry;
-        final float rw;
-        final float rh;
-
-        Hit(Kind kind, Panel panel, Module module, Setting setting, String label, float x, float y, float w, float h,
-            float rx, float ry, float rw, float rh) {
-            this.kind = kind;
-            this.panel = panel;
-            this.module = module;
-            this.setting = setting;
-            this.label = label;
-            this.x = x;
-            this.y = y;
-            this.w = w;
-            this.h = h;
-            this.rx = rx;
-            this.ry = ry;
-            this.rw = rw;
-            this.rh = rh;
-        }
-
-        boolean contains(float mx, float my) {
-            return mx >= x && mx <= x + w && my >= y && my <= y + h;
+        boolean over(float mx, float my) {
+            return mx >= x && mx <= x + WIDTH && my >= y && my <= y + shownHeight;
         }
     }
 
@@ -139,23 +118,33 @@ public class PanelClickGui extends GuiScreen {
     private final List<Panel> panels = new ArrayList<Panel>();
     private final List<Hit> hits = new ArrayList<Hit>();
     private final Set<Module> expanded = new HashSet<Module>();
-    private final Map<Module, Float> toggleAnim = new HashMap<Module, Float>();
+    private final Map<String, Float> anims = new HashMap<String, Float>();
     private final List<int[]> clips = new ArrayList<int[]>();
-    private final StringBuilder edit = new StringBuilder();
 
-    private Panel dragPanel;
-    private float dragOffX;
-    private float dragOffY;
-    private float pressX;
-    private float pressY;
+    private Panel dragging;
+    private float dragX, dragY, pressX, pressY;
     private boolean dragMoved;
-    private Hit dragHit;
-    private Panel scrollPanel;
-    private Module bindingModule;
-    private KeySetting bindingKey;
+    private Hit slider;
+    private Hit hue;
+    private Panel scrolling;
+
+    private Module listeningModule;
+    private KeySetting listeningKey;
     private TextSetting editingText;
-    private boolean editingConfig;
+    private boolean editingName;
+    private String buffer = "";
+
     private String configName = "";
+    private List<String> configs = new ArrayList<String>();
+    private long configsRead;
+    private String status = "";
+    private long statusAt;
+
+    private long openedAt;
+    private long lastFrame;
+    private float dt = 0.016F;
+    private float fade = 1.0F;
+    private boolean built;
     private boolean stateLoaded;
 
     private PanelClickGui() {
@@ -170,33 +159,7 @@ public class PanelClickGui extends GuiScreen {
 
     // ------------------------------------------------------------------ setup
 
-    @Override
-    public void initGui() {
-        Keyboard.enableRepeatEvents(true);
-        if (panels.isEmpty()) {
-            buildPanels();
-        }
-        keepOnScreen();
-    }
-
-    @Override
-    public void onGuiClosed() {
-        Keyboard.enableRepeatEvents(false);
-        commitEdit();
-        bindingModule = null;
-        bindingKey = null;
-        dragPanel = null;
-        dragHit = null;
-        scrollPanel = null;
-        saveState();
-    }
-
-    @Override
-    public boolean doesGuiPauseGame() {
-        return false;
-    }
-
-    private void buildPanels() {
+    private void build() {
         panels.clear();
         for (Module.category c : Module.category.values()) {
             if (c == Module.category.profiles) {
@@ -218,33 +181,69 @@ public class PanelClickGui extends GuiScreen {
                 }
             });
             String n = c.name();
-            Panel p = new Panel(n.substring(0, 1).toUpperCase() + n.substring(1), c, false);
-            p.modules.addAll(list);
-            panels.add(p);
+            panels.add(new Panel(n.substring(0, 1).toUpperCase() + n.substring(1), list, false));
         }
-        panels.add(new Panel("Configs", null, true));
+        panels.add(new Panel("Configs", Collections.<Module>emptyList(), true));
+        built = true;
+    }
 
-        // default layout: rows of folded panels, nothing overlaps until you open one
-        int cols = Math.max(1, (int) ((width - 8f) / (PANEL_W + GAP)));
-        for (int i = 0; i < panels.size(); i++) {
-            Panel p = panels.get(i);
-            p.x = 8f + (i % cols) * (PANEL_W + GAP);
-            p.y = 24f + (i / cols) * (HEADER_H + 6f);
+    // folded panels in rows, so nothing overlaps until you open one
+    private void layout() {
+        float x = 10f;
+        float y = 10f;
+        for (Panel p : panels) {
+            if (x + WIDTH > width - 6f && x > 10f) {
+                x = 10f;
+                y += HEADER + 8f;
+            }
+            p.x = x;
+            p.y = y;
+            x += WIDTH + 6f;
+        }
+    }
+
+    @Override
+    public void initGui() {
+        super.initGui();
+        Keyboard.enableRepeatEvents(true);
+        if (!built) {
+            build();
+            layout();
         }
         if (!stateLoaded) {
             stateLoaded = true;
             loadState();
         }
-    }
-
-    private void keepOnScreen() {
+        openedAt = System.currentTimeMillis();
+        configsRead = 0L;
+        slider = null;
+        hue = null;
+        dragging = null;
+        lastFrame = 0L;
         for (Panel p : panels) {
-            p.x = Math.max(2f, Math.min(p.x, width - PANEL_W - 2f));
-            p.y = Math.max(2f, Math.min(p.y, height - HEADER_H - 2f));
+            p.shownScroll = p.scroll;
+            p.x = Math.max(0f, Math.min(width - WIDTH, p.x));
+            p.y = Math.max(0f, Math.min(height - HEADER, p.y));
         }
     }
 
-    // ------------------------------------------------------------------ saved layout
+    @Override
+    public void onGuiClosed() {
+        Keyboard.enableRepeatEvents(false);
+        commitEdit();
+        listeningModule = null;
+        listeningKey = null;
+        dragging = null;
+        slider = null;
+        hue = null;
+        scrolling = null;
+        saveState();
+    }
+
+    @Override
+    public boolean doesGuiPauseGame() {
+        return false;
+    }
 
     private static File stateFile() {
         File dir = new File(Minecraft.getMinecraft().mcDataDir, "config");
@@ -257,7 +256,7 @@ public class PanelClickGui extends GuiScreen {
     private void saveState() {
         try (PrintWriter w = new PrintWriter(new FileWriter(stateFile()))) {
             for (Panel p : panels) {
-                w.println(p.title + "|" + p.x + "|" + p.y + "|" + p.collapsed);
+                w.println(p.title + "|" + p.x + "|" + p.y + "|" + p.folded);
             }
         } catch (Exception ignored) {
         }
@@ -279,7 +278,7 @@ public class PanelClickGui extends GuiScreen {
                     if (p.title.equals(parts[0])) {
                         p.x = Float.parseFloat(parts[1]);
                         p.y = Float.parseFloat(parts[2]);
-                        p.collapsed = Boolean.parseBoolean(parts[3]);
+                        p.folded = Boolean.parseBoolean(parts[3]);
                     }
                 }
             }
@@ -287,7 +286,7 @@ public class PanelClickGui extends GuiScreen {
         }
     }
 
-    // ------------------------------------------------------------------ drawing helpers
+    // ------------------------------------------------------------------ look
 
     private static int accent() {
         try {
@@ -302,50 +301,152 @@ public class PanelClickGui extends GuiScreen {
         return 0xFF9B5CFF;
     }
 
-    private static int alpha(int color, int a) {
-        return (Math.max(0, Math.min(255, a)) << 24) | (color & 0xFFFFFF);
+    // colour with its alpha scaled by the opening fade
+    private int a(int color) {
+        int alpha = Math.round((color >>> 24) * fade);
+        return (alpha << 24) | (color & 0xFFFFFF);
     }
 
-    private static int mix(int a, int b, float t) {
-        int ar = a >> 16 & 255;
-        int ag = a >> 8 & 255;
-        int ab = a & 255;
-        int br = b >> 16 & 255;
-        int bg = b >> 8 & 255;
-        int bb = b & 255;
-        int r = (int) (ar + (br - ar) * t);
-        int g = (int) (ag + (bg - ag) * t);
-        int bl = (int) (ab + (bb - ab) * t);
-        return 0xFF000000 | (r << 16) | (g << 8) | bl;
+    private static RavenFontRenderer titleFont() {
+        return FontManager.getHudRenderer("Sf-Bold", 1.15F);
     }
 
-    private static void rrect(float x, float y, float w, float h, float radius, int color) {
-        if (w <= 0f || h <= 0f) {
+    private static RavenFontRenderer rowFont() {
+        return FontManager.getHudRenderer("Sf-Regular", 0.95F);
+    }
+
+    private static RavenFontRenderer smallFont() {
+        return FontManager.getHudRenderer("Sf-Regular", 0.82F);
+    }
+
+    private void text(RavenFontRenderer font, String s, float x, float top, float height, int color) {
+        if (font == null) {
+            mc.fontRendererObj.drawString(s, (int) x, (int) (top + (height - 8f) / 2f), a(color));
             return;
         }
-        float r = Math.max(0f, Math.min(radius, Math.min(w, h) / 2f));
-        GlStateManager.enableBlend();
-        GlStateManager.disableTexture2D();
-        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
-        GlStateManager.color((color >> 16 & 255) / 255f, (color >> 8 & 255) / 255f, (color & 255) / 255f, (color >> 24 & 255) / 255f);
-        GL11.glBegin(GL11.GL_TRIANGLE_FAN);
-        GL11.glVertex2f(x + w / 2f, y + h / 2f);
+        font.drawString(s, x, top + (height - font.getFontHeight()) / 2.0F + 1.0F, a(color));
+    }
+
+    private void textRight(RavenFontRenderer font, String s, float right, float top, float height, int color) {
+        text(font, s, right - width(font, s), top, height, color);
+    }
+
+    private static float width(RavenFontRenderer font, String s) {
+        return font == null ? Minecraft.getMinecraft().fontRendererObj.getStringWidth(s) : (float) font.getStringWidth(s);
+    }
+
+    private static String trim(RavenFontRenderer font, String s, float max) {
+        if (width(font, s) <= max) {
+            return s;
+        }
+        String t = s;
+        while (t.length() > 1 && width(font, t + "..") > max) {
+            t = t.substring(0, t.length() - 1);
+        }
+        return t + "..";
+    }
+
+    private float ease(String key, float target, float speed) {
+        Float now = anims.get(key);
+        float v = now == null ? target : now;
+        v += (target - v) * Math.min(1.0F, dt * speed);
+        if (Math.abs(target - v) < 0.002F) {
+            v = target;
+        }
+        anims.put(key, v);
+        return v;
+    }
+
+    private float peek(String key, float fallback) {
+        Float v = anims.get(key);
+        return v == null ? fallback : v;
+    }
+
+    private static int mix(int from, int to, float t) {
+        int a1 = from >>> 24, r1 = from >> 16 & 255, g1 = from >> 8 & 255, b1 = from & 255;
+        int a2 = to >>> 24, r2 = to >> 16 & 255, g2 = to >> 8 & 255, b2 = to & 255;
+        return Math.round(a1 + (a2 - a1) * t) << 24 | Math.round(r1 + (r2 - r1) * t) << 16
+                | Math.round(g1 + (g2 - g1) * t) << 8 | Math.round(b1 + (b2 - b1) * t);
+    }
+
+    // ------------------------------------------------------------------ shapes
+
+    private static void shapePath(float x, float y, float w, float h, float r) {
+        GL11.glVertex2f(x, y + r);
         arc(x + r, y + r, r, 180, 270);
         arc(x + w - r, y + r, r, 270, 360);
         arc(x + w - r, y + h - r, r, 0, 90);
         arc(x + r, y + h - r, r, 90, 180);
-        GL11.glVertex2f(x, y + r);
-        GL11.glEnd();
+    }
+
+    private static void arc(float cx, float cy, float r, int from, int to) {
+        int steps = r < 0.5f ? 1 : 8;
+        for (int i = 0; i <= steps; i++) {
+            double ang = Math.toRadians(from + (to - from) * (double) i / steps);
+            GL11.glVertex2f((float) (cx + Math.cos(ang) * r), (float) (cy + Math.sin(ang) * r));
+        }
+    }
+
+    private static void begin(int color) {
+        GlStateManager.enableBlend();
+        GlStateManager.disableTexture2D();
+        GlStateManager.disableCull();
+        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        GlStateManager.color((color >> 16 & 255) / 255f, (color >> 8 & 255) / 255f, (color & 255) / 255f, (color >>> 24) / 255f);
+    }
+
+    private static void end() {
         GlStateManager.enableTexture2D();
         GlStateManager.disableBlend();
         GlStateManager.color(1f, 1f, 1f, 1f);
     }
 
-    private static void arc(float cx, float cy, float r, int from, int to) {
-        int steps = r < 0.5f ? 1 : 6;
-        for (int i = 0; i <= steps; i++) {
-            double ang = Math.toRadians(from + (to - from) * (double) i / steps);
-            GL11.glVertex2f((float) (cx + Math.cos(ang) * r), (float) (cy + Math.sin(ang) * r));
+    private static void rrect(float x, float y, float w, float h, float radius, int color) {
+        if (w <= 0f || h <= 0f || (color >>> 24) == 0) {
+            return;
+        }
+        float r = Math.max(0f, Math.min(radius, Math.min(w, h) / 2f));
+        begin(color);
+        GL11.glBegin(GL11.GL_TRIANGLE_FAN);
+        GL11.glVertex2f(x + w / 2f, y + h / 2f);
+        shapePath(x, y, w, h, r);
+        GL11.glVertex2f(x, y + r);
+        GL11.glEnd();
+        end();
+    }
+
+    private static void rim(float x, float y, float w, float h, float radius, int color) {
+        if ((color >>> 24) == 0) {
+            return;
+        }
+        float r = Math.max(0f, Math.min(radius, Math.min(w, h) / 2f));
+        begin(color);
+        GL11.glLineWidth(1.0F);
+        GL11.glBegin(GL11.GL_LINE_LOOP);
+        shapePath(x, y, w, h, r);
+        GL11.glEnd();
+        end();
+    }
+
+    private static void rect(float x1, float y1, float x2, float y2, int color) {
+        if ((color >>> 24) == 0 || x2 <= x1 || y2 <= y1) {
+            return;
+        }
+        begin(color);
+        GL11.glBegin(GL11.GL_QUADS);
+        GL11.glVertex2f(x1, y2);
+        GL11.glVertex2f(x2, y2);
+        GL11.glVertex2f(x2, y1);
+        GL11.glVertex2f(x1, y1);
+        GL11.glEnd();
+        end();
+    }
+
+    // a soft shadow: a few translucent rounded rectangles, each a little larger and fainter
+    private void shadow(float x, float y, float w, float h, float radius) {
+        for (int i = 4; i >= 1; i--) {
+            float grow = i * 1.6F;
+            rrect(x - grow, y - grow + 2f, w + grow * 2f, h + grow * 2f, radius + grow, a(0x14000000));
         }
     }
 
@@ -385,55 +486,282 @@ public class PanelClickGui extends GuiScreen {
         }
     }
 
-    private RavenFontRenderer rowFont() {
+    // ------------------------------------------------------------------ drawing
+
+    @Override
+    public void updateScreen() {
+        // modules show and hide their own settings in guiUpdate, which the old click GUI calls while it is open
         try {
-            return ravens4.module.impl.client.Gui.getClickGuiSettingFontRenderer();
-        } catch (Throwable t) {
-            return null;
+            for (Module m : new ArrayList<Module>(ModuleManager.modules)) {
+                m.guiUpdate();
+            }
+        } catch (Throwable ignored) {
         }
     }
 
-    private RavenFontRenderer titleFont() {
-        try {
-            return ravens4.module.impl.client.Gui.getClickGuiHeaderFontRenderer();
-        } catch (Throwable t) {
-            return null;
+    @Override
+    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        long now = System.nanoTime();
+        dt = lastFrame == 0L ? 0.016F : Math.min(0.05F, (now - lastFrame) / 1.0E9F);
+        lastFrame = now;
+        long elapsed = System.currentTimeMillis() - openedAt;
+        hits.clear();
+        clips.clear();
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
+        ScaledResolution sr = new ScaledResolution(mc);
+        int accent = accent();
+
+        if (dragging != null && dragMoved) {
+            dragging.x = Math.max(0.0F, Math.min(sr.getScaledWidth() - WIDTH, mouseX - dragX));
+            dragging.y = Math.max(0.0F, Math.min(sr.getScaledHeight() - HEADER, mouseY - dragY));
         }
-    }
-
-    private float fh(RavenFontRenderer f) {
-        return f == null ? mc.fontRendererObj.FONT_HEIGHT : f.getFontHeight();
-    }
-
-    private float sw(RavenFontRenderer f, String s) {
-        return f == null ? mc.fontRendererObj.getStringWidth(s) : f.getStringWidth(s);
-    }
-
-    private void text(RavenFontRenderer f, String s, float x, float y, int color) {
-        if (f == null) {
-            mc.fontRendererObj.drawString(s, (int) x, (int) y, color);
+        if (slider != null && Mouse.isButtonDown(0)) {
+            setFromSlider(slider, mouseX);
         } else {
-            f.drawString(s, x, y, color);
+            slider = null;
+        }
+        if (hue != null && Mouse.isButtonDown(0)) {
+            setHue(hue, mouseX);
+        } else {
+            hue = null;
+        }
+        if (scrolling != null && Mouse.isButtonDown(0)) {
+            setScrollFromMouse(scrolling, mouseY);
+        } else {
+            scrolling = null;
+        }
+
+        // the world dims, with a faint wash of the accent from below
+        fade = Math.min(1.0F, elapsed / 180.0F);
+        drawGradientRect(0, 0, sr.getScaledWidth(), sr.getScaledHeight(), a(0x70000000), a(0x30000000 | accent & 0xFFFFFF));
+
+        // each panel drops in a little after the one before it
+        float[] shown = new float[panels.size()];
+        for (int i = 0; i < panels.size(); i++) {
+            float t = Math.max(0.0F, Math.min(1.0F, (elapsed - i * 22.0F) / 240.0F));
+            t = 1.0F - (1.0F - t) * (1.0F - t) * (1.0F - t);
+            shown[i] = t;
+            measure(panels.get(i), sr, (1.0F - t) * -10.0F);
+        }
+        for (int i = 0; i < panels.size(); i++) {
+            fade = shown[i];
+            if (fade > 0.02F) {
+                drawPanel(panels.get(i), mouseX, mouseY, accent);
+            }
+        }
+        fade = Math.min(1.0F, elapsed / 180.0F);
+        drawInfoBar(sr, accent);
+
+        if (!status.isEmpty() && System.currentTimeMillis() - statusAt < 2500L) {
+            RavenFontRenderer font = rowFont();
+            float w = width(font, status) + 20.0F;
+            float x = (sr.getScaledWidth() - w) / 2.0F;
+            float y = sr.getScaledHeight() - 34.0F;
+            rrect(x, y, w, 18.0F, 6.0F, a(0xE0121217));
+            rect(x + 6.0F, y + 16.5F, x + w - 6.0F, y + 17.5F, a(accent));
+            text(font, status, x + 10.0F, y, 18.0F, TEXT);
+        }
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
+        GlStateManager.color(1f, 1f, 1f, 1f);
+        super.drawScreen(mouseX, mouseY, partialTicks);
+    }
+
+    // where the panel is this frame, how tall, and how far it scrolls
+    private void measure(Panel panel, ScaledResolution sr, float offset) {
+        panel.drawY = panel.y + offset;
+        float content = panel.folded ? 0.0F : contentHeight(panel);
+        float room = Math.max(0.0F, sr.getScaledHeight() - panel.y - HEADER - 8.0F);
+        float cap = panel.configs ? room : MAX_ROWS * MODULE_H + 4.0F;
+        float body = Math.min(content, Math.min(room, cap));
+        panel.content = content;
+        panel.body = ease("body:" + panel.title, body, 18.0F);
+        panel.maxScroll = Math.max(0.0F, content - body);
+        panel.scroll = Math.max(0.0F, Math.min(panel.maxScroll, panel.scroll));
+        panel.shownScroll += (panel.scroll - panel.shownScroll) * Math.min(1.0F, dt * 16.0F);
+        panel.shownScroll = Math.max(0.0F, Math.min(panel.maxScroll, panel.shownScroll));
+        panel.total = HEADER + (panel.body > 0.5F ? panel.body + 4.0F : 0.0F);
+        panel.shownHeight = panel.total;
+    }
+
+    private void drawPanel(Panel panel, float mx, float my, int accent) {
+        float x = panel.x;
+        float y = panel.drawY;
+        float total = panel.total;
+        float body = panel.body;
+
+        shadow(x, y, WIDTH, total, RADIUS);
+        rrect(x, y, WIDTH, total, RADIUS, a(BG));
+        // a hairline rim catches the light along the edge
+        rim(x, y, WIDTH, total, RADIUS, a(0x1EFFFFFF));
+
+        text(titleFont(), panel.title, x + 10.0F, y + 1.0F, HEADER - 4.0F, TEXT);
+        if (!panel.folded) {
+            String count = panel.configs ? String.valueOf(configs.size()) : String.valueOf(enabledIn(panel));
+            textRight(smallFont(), count, x + WIDTH - 10.0F, y + 1.0F, HEADER - 4.0F, FAINT);
+        }
+        float line = ease("line:" + panel.title, panel.folded ? 0.0F : 1.0F, 14.0F);
+        if (line > 0.01F) {
+            float half = (WIDTH - 16.0F) / 2.0F * line;
+            float cx = x + WIDTH / 2.0F;
+            // the accent line, with a soft glow under it
+            rect(cx - half, y + HEADER - 3.0F, cx + half, y + HEADER - 1.5F, a(accent));
+            rect(cx - half, y + HEADER - 1.5F, cx + half, y + HEADER + 1.0F, a(0x30000000 | accent & 0xFFFFFF));
+        }
+        hits.add(new Hit(Kind.HEADER, panel, null, x, y, x + WIDTH, y + HEADER));
+        if (body <= 0.5F) {
+            return;
+        }
+
+        float clipTop = y + HEADER + 1.0F;
+        float clipBottom = y + HEADER + body + 2.0F;
+        pushClip(x, clipTop, WIDTH, clipBottom - clipTop);
+        float rowY = clipTop + 2.0F - panel.shownScroll;
+        if (panel.configs) {
+            drawConfigs(panel, x, rowY, clipTop, clipBottom, mx, my, accent);
+        } else {
+            for (Module module : panel.modules) {
+                rowY = drawModule(panel, module, x, rowY, clipTop, clipBottom, mx, my, accent);
+            }
+        }
+        popClip();
+
+        if (panel.maxScroll > 0.5F) {
+            // fades at the cut edges, so rows slide under instead of being chopped
+            if (panel.shownScroll > 1.0F) {
+                drawGradientRect((int) x + 2, (int) clipTop, (int) (x + WIDTH) - 2, (int) clipTop + 8, a(0xB0121217), 0x00121217);
+            }
+            if (panel.shownScroll < panel.maxScroll - 1.0F) {
+                drawGradientRect((int) x + 2, (int) clipBottom - 8, (int) (x + WIDTH) - 2, (int) clipBottom, 0x00121217, a(0xB0121217));
+            }
+            float track = body - 4.0F;
+            float bar = Math.max(14.0F, track * body / panel.content);
+            float barY = clipTop + 2.0F + (track - bar) * (panel.shownScroll / panel.maxScroll);
+            rrect(x + WIDTH - 3.5F, barY, 2.0F, bar, 1.0F, a(0x50FFFFFF));
+            // a wider invisible strip to grab with a finger
+            hits.add(new Hit(Kind.SCROLL, panel, null, x + WIDTH - 9.0F, clipTop, x + WIDTH, clipBottom));
         }
     }
 
-    // text vertically centered in a row
-    private void textIn(RavenFontRenderer f, String s, float x, float rowY, float rowH, int color) {
-        text(f, s, x, rowY + (rowH - fh(f)) / 2f, color);
+    private static int enabledIn(Panel panel) {
+        int on = 0;
+        for (Module module : panel.modules) {
+            if (module.isEnabled()) {
+                on++;
+            }
+        }
+        return on;
     }
 
-    private String fit(RavenFontRenderer f, String s, float maxW) {
-        if (sw(f, s) <= maxW) {
-            return s;
+    // a small bar at the bottom left: client, server, FPS and the time
+    private void drawInfoBar(ScaledResolution sr, int accent) {
+        RavenFontRenderer font = smallFont();
+        String server = mc.getCurrentServerData() == null || mc.isSingleplayer() ? "Singleplayer" : mc.getCurrentServerData().serverIP;
+        String[] parts = {"rvns4", server, Minecraft.getDebugFPS() + " FPS", new SimpleDateFormat("HH:mm").format(new Date())};
+        float w = 12.0F;
+        for (String part : parts) {
+            w += width(font, part) + 12.0F;
         }
-        String t = s;
-        while (t.length() > 1 && sw(f, t + "..") > maxW) {
-            t = t.substring(0, t.length() - 1);
+        float x = 6.0F;
+        float y = sr.getScaledHeight() - 22.0F;
+        rrect(x, y, w, 16.0F, 8.0F, a(0xD0121217));
+        float cx = x + 10.0F;
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) {
+                rrect(cx - 7.5F, y + 6.5F, 3.0F, 3.0F, 1.5F, a(accent));
+            }
+            text(font, parts[i], cx, y, 16.0F, i == 0 ? accent : TEXT);
+            cx += width(font, parts[i]) + 12.0F;
         }
-        return t + "..";
     }
 
-    // ------------------------------------------------------------------ rows
+    private boolean visible(float top, float height, float clipTop, float clipBottom) {
+        return top + height > clipTop && top < clipBottom;
+    }
+
+    private void addHit(Kind kind, Panel panel, Object target, float x1, float y1, float x2, float y2, float clipTop, float clipBottom) {
+        float top = Math.max(y1, clipTop);
+        float bottom = Math.min(y2, clipBottom);
+        if (bottom > top) {
+            hits.add(new Hit(kind, panel, target, x1, top, x2, bottom));
+        }
+    }
+
+    private float drawModule(Panel panel, Module module, float x, float rowY, float clipTop, float clipBottom, float mx, float my, int accent) {
+        String id = module.getName();
+        boolean open = expanded.contains(module);
+        float opened = ease("open:" + id, open ? 1.0F : 0.0F, 16.0F);
+        if (visible(rowY, MODULE_H, clipTop, clipBottom)) {
+            boolean hovered = mx >= x && mx <= x + WIDTH && my >= Math.max(rowY, clipTop) && my <= Math.min(rowY + MODULE_H, clipBottom);
+            float glow = ease("hv:" + id, hovered ? 1.0F : 0.0F, 14.0F);
+            float on = ease("on:" + id, module.isEnabled() ? 1.0F : 0.0F, 12.0F);
+            if (glow > 0.01F) {
+                rrect(x + 4.0F, rowY + 1.0F, WIDTH - 8.0F, MODULE_H - 2.0F, 4.0F, a(Math.round(0x16 * glow) << 24 | 0xFFFFFF));
+            }
+            if (on > 0.01F) {
+                // a short accent tick at the left of what is on
+                float h = (MODULE_H - 8.0F) * on;
+                rrect(x + 5.0F, rowY + MODULE_H / 2.0F - h / 2.0F, 2.0F, h, 1.0F, a(accent));
+            }
+            int colour = mix(TEXT, accent, on);
+            text(rowFont(), trim(rowFont(), module.getName(), WIDTH - 32.0F), x + 11.0F + on * 1.5F, rowY, MODULE_H, colour);
+            int sign = mix(FAINT, TEXT, Math.max(glow * 0.6F, opened));
+            textRight(rowFont(), opened > 0.5F ? "-" : "+", x + WIDTH - 10.0F, rowY, MODULE_H, sign);
+            addHit(Kind.MODULE, panel, module, x, rowY, x + WIDTH - 22.0F, rowY + MODULE_H, clipTop, clipBottom);
+            addHit(Kind.EXPAND, panel, module, x + WIDTH - 22.0F, rowY, x + WIDTH, rowY + MODULE_H, clipTop, clipBottom);
+        }
+        rowY += MODULE_H;
+        if (opened <= 0.01F) {
+            return rowY;
+        }
+
+        List<Setting> settings = propertiesOf(module);
+        float start = rowY;
+        float full = settingsHeight(module, settings);
+        float height = full * opened;
+        // the settings unroll: drawn inside their own clip, inside the panel's
+        float innerTop = Math.max(clipTop, start);
+        float innerBottom = Math.min(clipBottom, start + height);
+        if (innerBottom <= innerTop) {
+            return start + height + 2.0F * opened;
+        }
+        pushClip(x, innerTop, WIDTH, innerBottom - innerTop);
+        rrect(x + 4.0F, start, WIDTH - 8.0F, full, 4.0F, a(SETTINGS_BG));
+        rect(x + 4.0F, start + 3.0F, x + 5.0F, start + full - 3.0F, a(0x90000000 | accent & 0xFFFFFF));
+        clipTop = innerTop;
+        clipBottom = innerBottom;
+        float left = x + 11.0F;
+        float right = x + WIDTH - 10.0F;
+
+        // the module's own key first
+        if (module.canBeEnabled()) {
+            if (visible(rowY, SETTING_H, clipTop, clipBottom)) {
+                String key = listeningModule == module && listeningKey == null ? "..." : keyName(module.getKeycode());
+                text(smallFont(), "Bind", left, rowY, SETTING_H, DIM);
+                textRight(smallFont(), key, right, rowY, SETTING_H, listeningModule == module && listeningKey == null ? accent : TEXT);
+                addHit(Kind.BIND, panel, module, x, rowY, x + WIDTH, rowY + SETTING_H, clipTop, clipBottom);
+            }
+            rowY += SETTING_H;
+        }
+
+        for (Setting setting : settings) {
+            float h = rowHeight(setting);
+            if (visible(rowY, h, clipTop, clipBottom)) {
+                drawSetting(panel, module, setting, x, left, right, rowY, clipTop, clipBottom, accent);
+            }
+            rowY += h;
+        }
+        // back to the panel's own clip
+        popClip();
+        return start + height + 2.0F * opened;
+    }
+
+    private static boolean isNumeric(Setting s) {
+        return s instanceof SliderSetting && !(((SliderSetting) s).isString && ((SliderSetting) s).getOptions() != null);
+    }
+
+    private static float rowHeight(Setting s) {
+        return isNumeric(s) || s instanceof ColorSetting ? SLIDER_H : SETTING_H;
+    }
 
     private static GroupSetting groupOf(Setting s) {
         if (s instanceof SliderSetting) {
@@ -454,166 +782,204 @@ public class PanelClickGui extends GuiScreen {
         return null;
     }
 
-    private List<Row> buildRows(Panel p) {
-        List<Row> rows = new ArrayList<Row>();
-        if (p.configs) {
-            ProfileManager pm = Raven.profileManager;
-            if (pm != null) {
-                for (Profile profile : pm.profiles) {
-                    rows.add(new Row(Kind.CONFIG_LOAD, null, null, profile.getName(), MODULE_H, false));
-                }
-            }
-            rows.add(new Row(Kind.CONFIG_NAME, null, null, "", ROW_H + 2f, false));
-            rows.add(new Row(Kind.CONFIG_SAVE, null, null, "Save", ROW_H + 2f, false));
-            return rows;
-        }
-        for (Module m : p.modules) {
-            rows.add(new Row(Kind.MODULE, m, null, m.getName(), MODULE_H, false));
-            if (!expanded.contains(m)) {
+    private static List<Setting> propertiesOf(Module module) {
+        List<Setting> out = new ArrayList<Setting>();
+        for (Setting s : module.getSettings()) {
+            if (!s.visible) {
                 continue;
             }
-            for (Setting s : m.getSettings()) {
-                if (!s.visible) {
-                    continue;
+            boolean supported = s instanceof SliderSetting || s instanceof ButtonSetting || s instanceof ColorSetting
+                    || s instanceof TextSetting || s instanceof KeySetting || s instanceof GroupSetting;
+            if (!supported) {
+                continue;
+            }
+            GroupSetting g = groupOf(s);
+            if (g != null && !g.isOpened()) {
+                continue;
+            }
+            out.add(s);
+        }
+        return out;
+    }
+
+    private float settingsHeight(Module module, List<Setting> settings) {
+        float h = module.canBeEnabled() ? SETTING_H : 0.0F;
+        for (Setting s : settings) {
+            h += rowHeight(s);
+        }
+        return Math.max(h, SETTING_H);
+    }
+
+    private void drawSetting(Panel panel, Module module, Setting setting, float x, float left, float right, float rowY,
+                             float clipTop, float clipBottom, int accent) {
+        RavenFontRenderer font = smallFont();
+        String label = setting.getName();
+        boolean child = groupOf(setting) != null;
+        float l = child ? left + 5.0F : left;
+
+        if (setting instanceof ButtonSetting) {
+            ButtonSetting b = (ButtonSetting) setting;
+            if (b.isMethodButton) {
+                text(font, trim(font, label, right - l), l, rowY, SETTING_H, accent);
+                addHit(Kind.BUTTON, panel, setting, x, rowY, x + WIDTH, rowY + SETTING_H, clipTop, clipBottom);
+                return;
+            }
+            boolean on = b.isToggled();
+            text(font, trim(font, label, right - l - 20.0F), l, rowY, SETTING_H, on ? TEXT : DIM);
+            float t = ease("sw:" + module.getName() + "/" + label, on ? 1.0F : 0.0F, 14.0F);
+            float sw = 14.0F;
+            float sh = 7.0F;
+            float bx = right - sw;
+            float by = rowY + (SETTING_H - sh) / 2.0F;
+            rrect(bx, by, sw, sh, sh / 2.0F, a(mix(0x30FFFFFF, accent, t)));
+            rrect(bx + 1.0F + (sw - sh) * t, by + 1.0F, sh - 2.0F, sh - 2.0F, (sh - 2.0F) / 2.0F, a(0xFFFFFFFF));
+            addHit(Kind.BOOL, panel, setting, x, rowY, x + WIDTH, rowY + SETTING_H, clipTop, clipBottom);
+        } else if (isNumeric(setting)) {
+            SliderSetting sl = (SliderSetting) setting;
+            double value = sl.getInput();
+            String vs = value == -1 ? "Off" : number(value) + sl.getSuffix();
+            text(font, trim(font, label, right - l - width(font, vs) - 6.0F), l, rowY, 12.0F, DIM);
+            textRight(font, vs, right, rowY, 12.0F, TEXT);
+            double range = sl.getMax() - sl.getMin();
+            float t = value == -1 || range <= 0 ? 0.0F : (float) ((value - sl.getMin()) / range);
+            t = Math.max(0.0F, Math.min(1.0F, t));
+            float trackY = rowY + 14.0F;
+            rect(l, trackY, right, trackY + 2.0F, a(0x30FFFFFF));
+            rect(l, trackY, l + (right - l) * t, trackY + 2.0F, a(accent));
+            rrect(l + (right - l) * t - 2.0F, trackY - 1.0F, 4.0F, 4.0F, 2.0F, a(TEXT));
+            Hit hit = new Hit(Kind.NUM, panel, setting, x, Math.max(rowY, clipTop), x + WIDTH, Math.min(rowY + SLIDER_H, clipBottom));
+            hit.trackX = l;
+            hit.trackW = right - l;
+            if (hit.y2 > hit.y1) {
+                hits.add(hit);
+            }
+        } else if (setting instanceof SliderSetting) {
+            SliderSetting sl = (SliderSetting) setting;
+            String[] o = sl.getOptions();
+            int i = (int) Math.max(0, Math.min(o.length - 1, sl.getInput()));
+            String value = o[i];
+            text(font, trim(font, label, right - l - width(font, value) - 6.0F), l, rowY, SETTING_H, DIM);
+            textRight(font, value, right, rowY, SETTING_H, accent);
+            addHit(Kind.MODE, panel, setting, x, rowY, x + WIDTH, rowY + SETTING_H, clipTop, clipBottom);
+        } else if (setting instanceof ColorSetting) {
+            ColorSetting c = (ColorSetting) setting;
+            int rgb = c.getRGB() & 0xFFFFFF;
+            text(font, trim(font, label, right - l - 14.0F), l, rowY, 12.0F, DIM);
+            rrect(right - 8.0F, rowY + 2.5F, 8.0F, 7.0F, 2.0F, a(0xFF000000 | rgb));
+            // a hue bar: drag along it to pick the colour
+            float trackY = rowY + 13.5F;
+            float w = right - l;
+            int steps = 24;
+            for (int i = 0; i < steps; i++) {
+                int col = Color.HSBtoRGB(i / (float) steps, 1.0F, 1.0F);
+                rect(l + w * i / steps, trackY, l + w * (i + 1) / steps, trackY + 3.0F, a(col | 0xFF000000));
+            }
+            float[] hsb = Color.RGBtoHSB(rgb >> 16 & 255, rgb >> 8 & 255, rgb & 255, null);
+            rect(l + w * hsb[0] - 0.5F, trackY - 1.0F, l + w * hsb[0] + 0.5F, trackY + 4.0F, a(TEXT));
+            Hit hit = new Hit(Kind.COLOR, panel, setting, x, Math.max(rowY, clipTop), x + WIDTH, Math.min(rowY + SLIDER_H, clipBottom));
+            hit.trackX = l;
+            hit.trackW = w;
+            if (hit.y2 > hit.y1) {
+                hits.add(hit);
+            }
+        } else if (setting instanceof TextSetting) {
+            TextSetting t = (TextSetting) setting;
+            boolean editing = editingText == t;
+            String value = editing ? buffer + (blink() ? "_" : "") : t.getText();
+            float labelW = Math.min(width(font, label), (right - l) * 0.45F);
+            text(font, trim(font, label, labelW), l, rowY, SETTING_H, DIM);
+            textRight(font, trim(font, value, right - l - labelW - 6.0F), right, rowY, SETTING_H, editing ? accent : TEXT);
+            addHit(Kind.TEXT, panel, setting, x, rowY, x + WIDTH, rowY + SETTING_H, clipTop, clipBottom);
+        } else if (setting instanceof KeySetting) {
+            KeySetting k = (KeySetting) setting;
+            boolean listening = listeningKey == k;
+            String value = listening ? "..." : keyName(k.getKey());
+            text(font, trim(font, label, right - l - width(font, value) - 6.0F), l, rowY, SETTING_H, DIM);
+            textRight(font, value, right, rowY, SETTING_H, listening ? accent : TEXT);
+            addHit(Kind.KEY, panel, setting, x, rowY, x + WIDTH, rowY + SETTING_H, clipTop, clipBottom);
+        } else if (setting instanceof GroupSetting) {
+            GroupSetting g = (GroupSetting) setting;
+            text(font, trim(font, label, right - left - 14.0F), left, rowY, SETTING_H, accent);
+            textRight(font, g.isOpened() ? "-" : "+", right, rowY, SETTING_H, FAINT);
+            addHit(Kind.GROUP, panel, setting, x, rowY, x + WIDTH, rowY + SETTING_H, clipTop, clipBottom);
+        }
+    }
+
+    private void drawConfigs(Panel panel, float x, float rowY, float clipTop, float clipBottom, float mx, float my, int accent) {
+        refreshConfigs();
+        String current = Raven.currentProfile == null ? "default" : Raven.currentProfile.getName();
+        for (String name : configs) {
+            if (visible(rowY, MODULE_H, clipTop, clipBottom)) {
+                boolean hovered = mx >= x && mx <= x + WIDTH && my >= Math.max(rowY, clipTop) && my <= Math.min(rowY + MODULE_H, clipBottom);
+                boolean picked = name.equalsIgnoreCase(configName);
+                if (hovered || picked) {
+                    rect(x + 3.0F, rowY, x + WIDTH - 3.0F, rowY + MODULE_H, a(picked ? 0x22FFFFFF : 0x14FFFFFF));
                 }
-                GroupSetting g = groupOf(s);
-                if (g != null && !g.isOpened()) {
-                    continue;
-                }
-                boolean child = g != null;
-                if (s instanceof SliderSetting) {
-                    SliderSetting sl = (SliderSetting) s;
-                    boolean mode = sl.isString && sl.getOptions() != null;
-                    rows.add(new Row(mode ? Kind.MODE : Kind.SLIDER, m, s, s.getName(), mode ? ROW_H : SLIDER_H, child));
-                } else if (s instanceof ButtonSetting) {
-                    boolean method = ((ButtonSetting) s).isMethodButton;
-                    rows.add(new Row(method ? Kind.BUTTON : Kind.BOOL, m, s, s.getName(), ROW_H, child));
-                } else if (s instanceof ColorSetting) {
-                    rows.add(new Row(Kind.COLOR, m, s, s.getName(), SLIDER_H, child));
-                } else if (s instanceof TextSetting) {
-                    rows.add(new Row(Kind.TEXT, m, s, s.getName(), ROW_H, child));
-                } else if (s instanceof KeySetting) {
-                    rows.add(new Row(Kind.KEY, m, s, s.getName(), ROW_H, child));
-                } else if (s instanceof GroupSetting) {
-                    rows.add(new Row(Kind.GROUP, m, s, s.getName(), ROW_H, false));
-                }
+                int colour = name.equalsIgnoreCase(current) ? accent : TEXT;
+                text(rowFont(), trim(rowFont(), name, WIDTH - 18.0F), x + 9.0F, rowY, MODULE_H, colour);
+                addHit(Kind.PROFILE, panel, name, x, rowY, x + WIDTH, rowY + MODULE_H, clipTop, clipBottom);
             }
-            if (m.canBeEnabled()) {
-                rows.add(new Row(Kind.BIND, m, null, "Bind", ROW_H, false));
-            }
+            rowY += MODULE_H;
         }
-        return rows;
+        rowY += 4.0F;
+
+        RavenFontRenderer font = smallFont();
+        text(font, "Name", x + 9.0F, rowY, 10.0F, FAINT);
+        rowY += 10.0F;
+        rrect(x + 6.0F, rowY, WIDTH - 12.0F, MODULE_H, 4.0F, a(editingName ? 0x30FFFFFF : 0x1CFFFFFF));
+        String shown = editingName ? buffer + (blink() ? "_" : "") : configName;
+        text(rowFont(), trim(rowFont(), shown.isEmpty() && !editingName ? "..." : shown, WIDTH - 24.0F), x + 10.0F, rowY, MODULE_H,
+                shown.isEmpty() ? FAINT : TEXT);
+        addHit(Kind.NAME, panel, null, x, rowY, x + WIDTH, rowY + MODULE_H, clipTop, clipBottom);
+        rowY += MODULE_H + 4.0F;
+
+        drawButton(panel, Kind.LOAD, "Load", x, rowY, clipTop, clipBottom, mx, my);
+        rowY += MODULE_H + 2.0F;
+        drawButton(panel, Kind.SAVE, "Save", x, rowY, clipTop, clipBottom, mx, my);
     }
 
-    // ------------------------------------------------------------------ screen
-
-    @Override
-    public void updateScreen() {
-        // modules show and hide their own settings in guiUpdate, which the old click GUI calls while it is open
-        try {
-            for (Module m : new ArrayList<Module>(ModuleManager.modules)) {
-                m.guiUpdate();
-            }
-        } catch (Throwable ignored) {
-        }
+    private void drawButton(Panel panel, Kind kind, String label, float x, float rowY, float clipTop, float clipBottom, float mx, float my) {
+        boolean hovered = mx >= x + 6.0F && mx <= x + WIDTH - 6.0F && my >= rowY && my <= rowY + MODULE_H;
+        rrect(x + 6.0F, rowY, WIDTH - 12.0F, MODULE_H, 4.0F, a(hovered ? 0x26FFFFFF : 0x12FFFFFF));
+        text(rowFont(), label, x + 10.0F, rowY, MODULE_H, TEXT);
+        addHit(kind, panel, null, x + 6.0F, rowY, x + WIDTH - 6.0F, rowY + MODULE_H, clipTop, clipBottom);
     }
 
-    @Override
-    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-        drawGradientRect(0, 0, width, height, 0x66000000, 0xB0000000);
-        hits.clear();
-        clips.clear();
-        GL11.glDisable(GL11.GL_SCISSOR_TEST);
-
-        drawInfoBar();
-        for (Panel p : panels) {
-            drawPanel(p, mouseX, mouseY);
-        }
-        GL11.glDisable(GL11.GL_SCISSOR_TEST);
-        GlStateManager.color(1f, 1f, 1f, 1f);
+    private boolean blink() {
+        return System.currentTimeMillis() / 500L % 2L == 0L;
     }
 
-    private void drawInfoBar() {
-        RavenFontRenderer f = rowFont();
-        int on = 0;
-        for (Module m : ModuleManager.modules) {
-            if (m.isEnabled() && !m.isHidden()) {
-                on++;
+    private float contentHeight(Panel panel) {
+        if (panel.configs) {
+            refreshConfigs();
+            return configs.size() * MODULE_H + 4.0F + 10.0F + MODULE_H + 4.0F + MODULE_H * 2.0F + 2.0F + 2.0F;
+        }
+        float h = 2.0F;
+        for (Module module : panel.modules) {
+            h += MODULE_H;
+            float opened = peek("open:" + module.getName(), expanded.contains(module) ? 1.0F : 0.0F);
+            if (opened > 0.01F) {
+                h += (settingsHeight(module, propertiesOf(module)) + 2.0F) * opened;
             }
         }
-        String s = "rvns4   " + on + " on   " + Minecraft.getDebugFPS() + " fps";
-        float w = sw(f, s) + 14f;
-        rrect(6f, 4f, w, 14f, 5f, 0xCC101116);
-        RenderUtils.drawRect(10f, 16.5f, 6f + w - 4f, 17.2f, alpha(accent(), 0xA0));
-        textIn(f, s, 13f, 4f, 13f, 0xFFE4E6EE);
+        return h;
     }
 
-    private void drawPanel(Panel p, int mx, int my) {
-        RavenFontRenderer f = rowFont();
-        RavenFontRenderer tf = titleFont();
-        float x = p.x;
-        float y = p.y;
-        float w = PANEL_W;
-        int accent = accent();
-
-        List<Row> rows = p.collapsed ? Collections.<Row>emptyList() : buildRows(p);
-        float content = 0f;
-        for (Row r : rows) {
-            content += r.h;
-        }
-        float maxBody = Math.max(40f, height - (y + HEADER_H) - 6f);
-        float bodyH = Math.min(content, maxBody);
-        p.maxScroll = Math.max(0f, content - bodyH);
-        p.scroll = Math.max(0f, Math.min(p.scroll, p.maxScroll));
-        p.totalH = HEADER_H + (rows.isEmpty() ? 0f : bodyH + 3f);
-        p.bodyTop = y + HEADER_H + 1f;
-        p.bodyH = bodyH;
-
-        rrect(x - 1f, y - 1f, w + 2f, p.totalH + 2f, 7f, 0x50000000);
-        rrect(x, y, w, p.totalH, 6f, 0xF2101116);
-        rrect(x, y, w, HEADER_H, 6f, 0xFF171922);
-        RenderUtils.drawRect(x + 5f, y + HEADER_H - 1.5f, x + w - 5f, y + HEADER_H - 0.5f, alpha(accent, 0xA0));
-        textIn(tf, p.title, x + 8f, y, HEADER_H, 0xFFFFFFFF);
-        String mark = p.collapsed ? "+" : "-";
-        textIn(tf, mark, x + w - 8f - sw(tf, mark), y, HEADER_H, 0xFFB4B6C2);
-        hits.add(new Hit(Kind.HEADER, p, null, null, "", x, y, w, HEADER_H, x, y, w, HEADER_H));
-
-        if (rows.isEmpty()) {
+    private void refreshConfigs() {
+        long now = System.currentTimeMillis();
+        if (now - configsRead < 1000L) {
             return;
         }
-        float bodyTop = p.bodyTop;
-        float bodyBottom = bodyTop + bodyH;
-        pushClip(x, bodyTop, w, bodyH);
-        float ry = bodyTop - p.scroll;
-        for (Row r : rows) {
-            if (ry + r.h >= bodyTop && ry <= bodyBottom) {
-                drawRow(p, r, x, ry, w, bodyTop, bodyBottom, mx, my, f, accent);
+        configsRead = now;
+        List<String> out = new ArrayList<String>();
+        ProfileManager pm = Raven.profileManager;
+        if (pm != null) {
+            for (Profile p : pm.profiles) {
+                out.add(p.getName());
             }
-            ry += r.h;
         }
-        popClip();
-
-        if (p.maxScroll > 0f) {
-            float trackX = x + w - SCROLLBAR_W - 1f;
-            float thumbH = Math.max(14f, bodyH * bodyH / content);
-            float thumbY = bodyTop + (bodyH - thumbH) * (p.scroll / p.maxScroll);
-            rrect(trackX, bodyTop, SCROLLBAR_W, bodyH, 2f, 0x33FFFFFF);
-            rrect(trackX, thumbY, SCROLLBAR_W, thumbH, 2f, alpha(accent, 0xCC));
-            hits.add(new Hit(Kind.SCROLL, p, null, null, "", trackX - 2f, bodyTop, SCROLLBAR_W + 4f, bodyH, trackX, bodyTop, SCROLLBAR_W, bodyH));
-        }
-    }
-
-    private void addHit(Kind kind, Panel p, Module m, Setting s, String label, float x, float y, float w, float h, float bodyTop, float bodyBottom) {
-        float top = Math.max(y, bodyTop);
-        float bottom = Math.min(y + h, bodyBottom);
-        if (bottom <= top) {
-            return;
-        }
-        hits.add(new Hit(kind, p, m, s, label, x, top, w, bottom - top, x, y, w, h));
-    }
-
-    private boolean over(float mx, float my, float x, float y, float w, float h, float bodyTop, float bodyBottom) {
-        return mx >= x && mx <= x + w && my >= Math.max(y, bodyTop) && my <= Math.min(y + h, bodyBottom);
+        Collections.sort(out, String.CASE_INSENSITIVE_ORDER);
+        configs = out;
     }
 
     private static String number(double v) {
@@ -638,179 +1004,6 @@ public class PanelClickGui extends GuiScreen {
         return n == null ? "?" : n;
     }
 
-    private void drawRow(Panel p, Row r, float x, float y, float w, float bodyTop, float bodyBottom, int mx, int my, RavenFontRenderer f, int accent) {
-        float h = r.h;
-        float pad = r.child ? 13f : 9f;
-        float rightEdge = x + w - (p.maxScroll > 0f ? SCROLLBAR_W + 4f : 6f);
-        boolean hover = over(mx, my, x, y, w, h, bodyTop, bodyBottom);
-        int text = 0xFFD0D2DC;
-        int dim = 0xFF8A8D9B;
-
-        switch (r.kind) {
-            case MODULE: {
-                Module m = r.module;
-                boolean on = m.isEnabled();
-                Float a = toggleAnim.get(m);
-                float cur = a == null ? (on ? 1f : 0f) : a;
-                cur += ((on ? 1f : 0f) - cur) * 0.25f;
-                toggleAnim.put(m, cur);
-                if (cur > 0.03f) {
-                    rrect(x + 3f, y + 1f, w - 6f, h - 2f, 4f, alpha(accent, (int) (0x66 * cur)));
-                } else if (hover) {
-                    rrect(x + 3f, y + 1f, w - 6f, h - 2f, 4f, 0x22FFFFFF);
-                }
-                textIn(f, fit(f, r.label, w - 32f), x + 8f, y, h, mix(0xFFB4B6C2, 0xFFFFFFFF, cur));
-                String sign = expanded.contains(m) ? "-" : "+";
-                textIn(f, sign, rightEdge - sw(f, sign) - 1f, y, h, dim);
-                addHit(Kind.MODULE, p, m, null, "", x, y, w - 20f, h, bodyTop, bodyBottom);
-                addHit(Kind.EXPAND, p, m, null, "", x + w - 22f, y, 22f, h, bodyTop, bodyBottom);
-                break;
-            }
-            case BIND: {
-                boolean listening = bindingModule == r.module;
-                textIn(f, "Bind", x + pad, y, h, text);
-                String v = listening ? "press a key..." : keyName(r.module.getKeycode());
-                textIn(f, v, rightEdge - sw(f, v), y, h, listening ? accent : dim);
-                addHit(Kind.BIND, p, r.module, null, "", x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            case BOOL: {
-                ButtonSetting b = (ButtonSetting) r.setting;
-                boolean on = b.isToggled();
-                textIn(f, fit(f, r.label, w - pad - 34f), x + pad, y, h, on ? 0xFFFFFFFF : text);
-                float tx = rightEdge - 15f;
-                float ty = y + (h - 7f) / 2f;
-                rrect(tx, ty, 15f, 7f, 3.5f, on ? alpha(accent, 0xFF) : 0xFF3A3D4A);
-                rrect(on ? tx + 9f : tx + 1f, ty + 1f, 5f, 5f, 2.5f, 0xFFFFFFFF);
-                addHit(Kind.BOOL, p, r.module, b, "", x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            case BUTTON: {
-                rrect(x + 8f, y + 1f, w - 16f, h - 2f, 4f, hover ? 0xFF303444 : 0xFF262935);
-                String l = fit(f, r.label, w - 24f);
-                textIn(f, l, x + (w - sw(f, l)) / 2f, y, h, 0xFFFFFFFF);
-                addHit(Kind.BUTTON, p, r.module, r.setting, "", x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            case SLIDER: {
-                SliderSetting sl = (SliderSetting) r.setting;
-                double value = sl.getInput();
-                String vs = value == -1 ? "Off" : number(value) + sl.getSuffix();
-                textIn(f, fit(f, r.label, w - pad - sw(f, vs) - 12f), x + pad, y, 12f, text);
-                text(f, vs, rightEdge - sw(f, vs), y + (12f - fh(f)) / 2f, accent);
-                float tx = x + pad;
-                float tw = rightEdge - tx;
-                float ty = y + h - 7f;
-                double range = sl.getMax() - sl.getMin();
-                float frac = value == -1 || range <= 0 ? 0f : (float) ((value - sl.getMin()) / range);
-                frac = Math.max(0f, Math.min(1f, frac));
-                RenderUtils.drawRect(tx, ty, tx + tw, ty + 2.5f, 0xFF2A2D39);
-                RenderUtils.drawRect(tx, ty, tx + tw * frac, ty + 2.5f, alpha(accent, 0xFF));
-                rrect(tx + tw * frac - 2f, ty - 2f, 4f, 6.5f, 2f, 0xFFFFFFFF);
-                addHit(Kind.SLIDER, p, r.module, sl, "", x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            case MODE: {
-                SliderSetting sl = (SliderSetting) r.setting;
-                String[] o = sl.getOptions();
-                int i = (int) Math.max(0, Math.min(o.length - 1, sl.getInput()));
-                String v = o[i];
-                textIn(f, fit(f, r.label, w - pad - sw(f, v) - 14f), x + pad, y, h, text);
-                textIn(f, v, rightEdge - sw(f, v), y, h, accent);
-                addHit(Kind.MODE, p, r.module, sl, "", x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            case COLOR: {
-                ColorSetting c = (ColorSetting) r.setting;
-                textIn(f, fit(f, r.label, w - pad - 24f), x + pad, y, 12f, text);
-                rrect(rightEdge - 12f, y + 2f, 12f, 8f, 2.5f, 0xFF000000 | (c.getRGB() & 0xFFFFFF));
-                float tx = x + pad;
-                float tw = rightEdge - tx;
-                float ty = y + h - 7f;
-                int segs = 24;
-                for (int i = 0; i < segs; i++) {
-                    int col = Color.HSBtoRGB(i / (float) segs, 1f, 1f) | 0xFF000000;
-                    RenderUtils.drawRect(tx + tw * i / segs, ty, tx + tw * (i + 1) / segs + 0.5f, ty + 3f, col);
-                }
-                float frac = Math.max(0f, Math.min(1f, c.getHue() / 360f));
-                rrect(tx + tw * frac - 1.5f, ty - 2f, 3f, 7f, 1.5f, 0xFFFFFFFF);
-                addHit(Kind.COLOR, p, r.module, c, "", x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            case TEXT: {
-                TextSetting t = (TextSetting) r.setting;
-                boolean editing = editingText == t;
-                float boxW = Math.min(52f, w * 0.48f);
-                float bx = rightEdge - boxW;
-                rrect(bx, y + 1.5f, boxW, h - 3f, 3f, editing ? 0xFF2D3040 : 0xFF21242F);
-                String shown = editing ? edit.toString() + ((System.currentTimeMillis() / 500L) % 2L == 0L ? "_" : "") : t.getText();
-                if (shown.isEmpty() && !editing) {
-                    shown = t.getPlaceholder() == null ? "" : t.getPlaceholder();
-                }
-                while (shown.length() > 1 && sw(f, shown) > boxW - 6f) {
-                    shown = shown.substring(1);
-                }
-                textIn(f, fit(f, r.label, bx - x - pad - 3f), x + pad, y, h, text);
-                textIn(f, shown, bx + 3f, y, h, editing ? 0xFFFFFFFF : dim);
-                addHit(Kind.TEXT, p, r.module, t, "", x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            case KEY: {
-                KeySetting k = (KeySetting) r.setting;
-                boolean listening = bindingKey == k;
-                textIn(f, fit(f, r.label, w - pad - 50f), x + pad, y, h, text);
-                String v = listening ? "press a key..." : keyName(k.getKey());
-                textIn(f, v, rightEdge - sw(f, v), y, h, listening ? accent : dim);
-                addHit(Kind.KEY, p, r.module, k, "", x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            case GROUP: {
-                GroupSetting g = (GroupSetting) r.setting;
-                textIn(f, fit(f, r.label, w - 30f), x + 8f, y, h, accent);
-                String sign = g.isOpened() ? "-" : "+";
-                textIn(f, sign, rightEdge - sw(f, sign) - 1f, y, h, accent);
-                RenderUtils.drawRect(x + 8f, y + h - 0.5f, rightEdge, y + h, 0x22FFFFFF);
-                addHit(Kind.GROUP, p, r.module, g, "", x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            case CONFIG_LOAD: {
-                boolean current = Raven.currentProfile != null && Raven.currentProfile.getName().equalsIgnoreCase(r.label);
-                if (current) {
-                    rrect(x + 3f, y + 1f, w - 6f, h - 2f, 4f, alpha(accent, 0x55));
-                } else if (hover) {
-                    rrect(x + 3f, y + 1f, w - 6f, h - 2f, 4f, 0x22FFFFFF);
-                }
-                textIn(f, fit(f, r.label, w - 20f), x + 8f, y, h, current ? 0xFFFFFFFF : 0xFFB4B6C2);
-                addHit(Kind.CONFIG_LOAD, p, null, null, r.label, x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            case CONFIG_NAME: {
-                rrect(x + 6f, y + 1.5f, w - 12f, h - 3f, 3f, editingConfig ? 0xFF2D3040 : 0xFF21242F);
-                String shown = editingConfig ? edit.toString() + ((System.currentTimeMillis() / 500L) % 2L == 0L ? "_" : "") : configName;
-                boolean placeholder = shown.isEmpty();
-                if (placeholder) {
-                    shown = "config name";
-                }
-                while (shown.length() > 1 && sw(f, shown) > w - 22f) {
-                    shown = shown.substring(1);
-                }
-                textIn(f, shown, x + 10f, y, h, placeholder ? 0xFF656879 : 0xFFFFFFFF);
-                addHit(Kind.CONFIG_NAME, p, null, null, "", x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            case CONFIG_SAVE: {
-                rrect(x + 6f, y + 1.5f, w - 12f, h - 3f, 4f, hover ? alpha(accent, 0xAA) : alpha(accent, 0x70));
-                String l = configName.trim().isEmpty() ? "Save current" : "Save as " + configName.trim();
-                l = fit(f, l, w - 22f);
-                textIn(f, l, x + (w - sw(f, l)) / 2f, y, h, 0xFFFFFFFF);
-                addHit(Kind.CONFIG_SAVE, p, null, null, "", x, y, w, h, bodyTop, bodyBottom);
-                break;
-            }
-            default:
-                break;
-        }
-    }
-
     // ------------------------------------------------------------------ input
 
     private void markUnsaved(Module m) {
@@ -819,42 +1012,46 @@ public class PanelClickGui extends GuiScreen {
         }
     }
 
+    private void tell(String message) {
+        status = message;
+        statusAt = System.currentTimeMillis();
+    }
+
     private void commitEdit() {
         if (editingText != null) {
-            editingText.setText(edit.toString());
+            editingText.setText(buffer);
             editingText.submit();
             editingText = null;
-        } else if (editingConfig) {
-            configName = edit.toString();
-            editingConfig = false;
+        } else if (editingName) {
+            configName = buffer;
+            editingName = false;
         }
     }
 
-    private void setSliderFromMouse(SliderSetting sl, Hit h, float mx) {
-        float pad = 9f;
-        float tx = h.rx + pad;
-        float tw = (h.rx + h.rw - 6f) - tx;
-        float frac = Math.max(0f, Math.min(1f, (mx - tx) / Math.max(1f, tw)));
-        sl.setValue(sl.getMin() + frac * (sl.getMax() - sl.getMin()));
+    private void setFromSlider(Hit hit, float mouseX) {
+        SliderSetting sl = (SliderSetting) hit.target;
+        float t = Math.max(0.0F, Math.min(1.0F, (mouseX - hit.trackX) / Math.max(1.0F, hit.trackW)));
+        sl.setValue(sl.getMin() + t * (sl.getMax() - sl.getMin()));
     }
 
-    private void setColorFromMouse(ColorSetting c, Hit h, float mx) {
-        float tx = h.rx + 9f;
-        float tw = (h.rx + h.rw - 6f) - tx;
-        float frac = Math.max(0f, Math.min(1f, (mx - tx) / Math.max(1f, tw)));
+    private void setHue(Hit hit, float mouseX) {
+        ColorSetting c = (ColorSetting) hit.target;
+        float t = Math.max(0.0F, Math.min(1.0F, (mouseX - hit.trackX) / Math.max(1.0F, hit.trackW)));
         float s = c.getSaturation();
         float b = c.getBrightness();
-        c.setFromHSB(frac * 360f, s < 0.05f ? 1f : s, b < 0.05f ? 1f : b);
+        c.setFromHSB(t * 360f, s < 0.05f ? 1f : s, b < 0.05f ? 1f : b);
     }
 
     private void setScrollFromMouse(Panel p, float my) {
         if (p.maxScroll <= 0f) {
             return;
         }
-        float content = p.maxScroll + p.bodyH;
-        float thumbH = Math.max(14f, p.bodyH * p.bodyH / content);
-        float frac = (my - p.bodyTop - thumbH / 2f) / Math.max(1f, p.bodyH - thumbH);
-        p.scroll = Math.max(0f, Math.min(p.maxScroll, frac * p.maxScroll));
+        float top = p.drawY + HEADER + 1.0F;
+        float track = p.body - 4.0F;
+        float bar = Math.max(14.0F, track * p.body / p.content);
+        float t = (my - top - bar / 2.0F) / Math.max(1.0F, track - bar);
+        p.scroll = Math.max(0f, Math.min(p.maxScroll, t * p.maxScroll));
+        p.shownScroll = p.scroll;
     }
 
     private void bringToFront(Panel p) {
@@ -862,24 +1059,31 @@ public class PanelClickGui extends GuiScreen {
         panels.add(p);
     }
 
-    @Override
-    protected void mouseClicked(int mx, int my, int button) {
-        // a click while waiting for a key: mouse buttons other than left/right become the bind, anything else cancels
-        if (bindingModule != null || bindingKey != null) {
-            if (button > 1) {
-                if (bindingKey != null) {
-                    bindingKey.setKey(button + 1000);
-                    markUnsaved(bindingModule);
-                } else {
-                    bindingModule.setBind(button + 1000);
-                    markUnsaved(bindingModule);
-                }
+    private Module moduleOf(Setting s) {
+        for (Module m : ModuleManager.modules) {
+            if (m.getSettings().contains(s)) {
+                return m;
             }
-            bindingModule = null;
-            bindingKey = null;
+        }
+        return null;
+    }
+
+    @Override
+    protected void mouseClicked(int mx, int my, int button) throws IOException {
+        // a click while waiting for a key: other mouse buttons become the bind, anything else cancels
+        if (listeningModule != null || listeningKey != null) {
+            if (button > 1) {
+                if (listeningKey != null) {
+                    listeningKey.setKey(button + 1000);
+                } else {
+                    listeningModule.setBind(button + 1000);
+                }
+                markUnsaved(listeningModule);
+            }
+            listeningModule = null;
+            listeningKey = null;
             return;
         }
-        boolean hitText = false;
         Hit hit = null;
         for (int i = hits.size() - 1; i >= 0; i--) {
             Hit h = hits.get(i);
@@ -888,10 +1092,8 @@ public class PanelClickGui extends GuiScreen {
                 break;
             }
         }
-        if (hit != null) {
-            hitText = hit.kind == Kind.TEXT || hit.kind == Kind.CONFIG_NAME;
-        }
-        if (!hitText) {
+        boolean onText = hit != null && (hit.kind == Kind.TEXT || hit.kind == Kind.NAME);
+        if (!onText) {
             commitEdit();
         }
         if (hit == null) {
@@ -901,104 +1103,137 @@ public class PanelClickGui extends GuiScreen {
 
         switch (hit.kind) {
             case HEADER:
-                dragPanel = hit.panel;
-                dragOffX = mx - hit.panel.x;
-                dragOffY = my - hit.panel.y;
-                pressX = mx;
-                pressY = my;
-                dragMoved = false;
                 if (button == 1) {
-                    hit.panel.collapsed = !hit.panel.collapsed;
-                    dragPanel = null;
+                    hit.panel.folded = !hit.panel.folded;
+                    saveState();
+                } else {
+                    dragging = hit.panel;
+                    dragX = mx - hit.panel.x;
+                    dragY = my - hit.panel.drawY;
+                    pressX = mx;
+                    pressY = my;
+                    dragMoved = false;
                 }
                 break;
-            case MODULE:
-                if (button == 0 && hit.module.canBeEnabled()) {
-                    hit.module.toggle();
-                    markUnsaved(hit.module);
+            case MODULE: {
+                Module m = (Module) hit.target;
+                if (button == 0 && m.canBeEnabled()) {
+                    m.toggle();
+                    markUnsaved(m);
                 } else if (button == 1) {
-                    toggleExpanded(hit.module);
+                    toggleExpanded(m);
                 } else if (button == 2) {
-                    bindingModule = hit.module;
+                    listeningModule = m;
                 }
                 break;
+            }
             case EXPAND:
-                toggleExpanded(hit.module);
+                toggleExpanded((Module) hit.target);
                 break;
             case BIND:
-                bindingModule = hit.module;
+                listeningModule = (Module) hit.target;
+                listeningKey = null;
                 break;
             case BOOL: {
-                ButtonSetting b = (ButtonSetting) hit.setting;
+                ButtonSetting b = (ButtonSetting) hit.target;
                 b.toggle();
-                hit.module.guiButtonToggled(b);
-                markUnsaved(hit.module);
+                Module m = moduleOf(b);
+                if (m != null) {
+                    m.guiButtonToggled(b);
+                    markUnsaved(m);
+                }
                 break;
             }
             case BUTTON: {
-                ((ButtonSetting) hit.setting).runMethod();
-                markUnsaved(hit.module);
+                ButtonSetting b = (ButtonSetting) hit.target;
+                b.runMethod();
+                markUnsaved(moduleOf(b));
                 break;
             }
-            case SLIDER: {
-                SliderSetting sl = (SliderSetting) hit.setting;
-                dragHit = hit;
-                setSliderFromMouse(sl, hit, mx);
+            case NUM:
+                slider = hit;
+                setFromSlider(hit, mx);
                 break;
-            }
             case MODE: {
-                SliderSetting sl = (SliderSetting) hit.setting;
+                SliderSetting sl = (SliderSetting) hit.target;
                 int n = sl.getOptions().length;
                 int cur = (int) sl.getInput();
-                int next = button == 1 ? (cur - 1 + n) % n : (cur + 1) % n;
-                sl.setValue(next);
-                markUnsaved(hit.module);
+                sl.setValue(button == 1 ? (cur - 1 + n) % n : (cur + 1) % n);
+                markUnsaved(moduleOf(sl));
                 break;
             }
-            case COLOR: {
-                dragHit = hit;
-                setColorFromMouse((ColorSetting) hit.setting, hit, mx);
+            case COLOR:
+                hue = hit;
+                setHue(hit, mx);
                 break;
-            }
             case TEXT: {
-                TextSetting t = (TextSetting) hit.setting;
+                TextSetting t = (TextSetting) hit.target;
                 if (editingText != t) {
                     commitEdit();
                     editingText = t;
-                    edit.setLength(0);
-                    edit.append(t.getText());
+                    buffer = t.getText();
                 }
                 break;
             }
             case KEY:
-                bindingKey = (KeySetting) hit.setting;
-                bindingModule = hit.module;
+                listeningKey = (KeySetting) hit.target;
+                listeningModule = moduleOf(listeningKey);
                 break;
             case GROUP: {
-                GroupSetting g = (GroupSetting) hit.setting;
+                GroupSetting g = (GroupSetting) hit.target;
                 g.setOpened(!g.isOpened());
                 break;
             }
-            case CONFIG_LOAD: {
+            case PROFILE:
+                configName = (String) hit.target;
+                break;
+            case NAME:
+                if (!editingName) {
+                    commitEdit();
+                    editingName = true;
+                    buffer = configName;
+                }
+                break;
+            case LOAD: {
                 ProfileManager pm = Raven.profileManager;
-                if (pm != null) {
-                    pm.loadProfile(hit.label);
+                String n = configName.trim();
+                if (pm == null || n.isEmpty()) {
+                    tell("Pick or type a config name first");
+                } else if (pm.getProfile(n) == null) {
+                    tell("No config called " + n);
+                } else {
+                    pm.loadProfile(n);
+                    tell("Loaded " + n);
                 }
                 break;
             }
-            case CONFIG_NAME:
-                if (!editingConfig) {
-                    commitEdit();
-                    editingConfig = true;
-                    edit.setLength(0);
-                    edit.append(configName);
+            case SAVE: {
+                ProfileManager pm = Raven.profileManager;
+                String n = configName.trim();
+                if (pm == null) {
+                    break;
                 }
+                if (n.isEmpty()) {
+                    if (Raven.currentProfile != null) {
+                        pm.saveProfile(Raven.currentProfile);
+                        tell("Saved " + Raven.currentProfile.getName());
+                    } else {
+                        tell("Type a config name first");
+                    }
+                } else {
+                    Profile existing = pm.getProfile(n);
+                    if (existing == null) {
+                        pm.createProfile(n, 0);
+                    } else {
+                        pm.saveProfile(existing);
+                    }
+                    tell("Saved " + n);
+                }
+                configsRead = 0L;
                 break;
-            case CONFIG_SAVE:
-                saveConfig();
-                break;
+            }
             case SCROLL:
-                scrollPanel = hit.panel;
+                scrolling = hit.panel;
                 setScrollFromMouse(hit.panel, my);
                 break;
             default:
@@ -1012,65 +1247,35 @@ public class PanelClickGui extends GuiScreen {
         }
     }
 
-    private void saveConfig() {
-        ProfileManager pm = Raven.profileManager;
-        if (pm == null) {
-            return;
-        }
-        String n = configName.trim();
-        if (n.isEmpty()) {
-            if (Raven.currentProfile != null) {
-                pm.saveProfile(Raven.currentProfile);
-            }
-            return;
-        }
-        Profile existing = pm.getProfile(n);
-        if (existing == null) {
-            pm.createProfile(n, 0);
-        } else {
-            pm.saveProfile(existing);
-        }
-    }
-
     @Override
     protected void mouseClickMove(int mx, int my, int button, long timeSinceLastClick) {
-        if (dragPanel != null) {
-            if (!dragMoved && (Math.abs(mx - pressX) > 3f || Math.abs(my - pressY) > 3f)) {
-                dragMoved = true;
-            }
-            if (dragMoved) {
-                dragPanel.x = Math.max(0f, Math.min(mx - dragOffX, width - PANEL_W));
-                dragPanel.y = Math.max(0f, Math.min(my - dragOffY, height - HEADER_H));
-            }
-        } else if (dragHit != null) {
-            if (dragHit.kind == Kind.SLIDER) {
-                setSliderFromMouse((SliderSetting) dragHit.setting, dragHit, mx);
-            } else if (dragHit.kind == Kind.COLOR) {
-                setColorFromMouse((ColorSetting) dragHit.setting, dragHit, mx);
-            }
-        } else if (scrollPanel != null) {
-            setScrollFromMouse(scrollPanel, my);
+        if (dragging != null && !dragMoved && (Math.abs(mx - pressX) > 3f || Math.abs(my - pressY) > 3f)) {
+            dragMoved = true;
         }
     }
 
     @Override
     protected void mouseReleased(int mx, int my, int state) {
-        if (dragPanel != null) {
+        if (dragging != null) {
             if (!dragMoved) {
-                dragPanel.collapsed = !dragPanel.collapsed; // a tap on the header folds or opens the panel
+                dragging.folded = !dragging.folded; // a tap on the title folds or opens the panel
             }
-            dragPanel = null;
+            dragging = null;
             saveState();
         }
-        if (dragHit != null) {
-            markUnsaved(dragHit.module);
-            dragHit = null;
+        if (slider != null) {
+            markUnsaved(moduleOf((Setting) slider.target));
+            slider = null;
         }
-        scrollPanel = null;
+        if (hue != null) {
+            markUnsaved(moduleOf((Setting) hue.target));
+            hue = null;
+        }
+        scrolling = null;
     }
 
     @Override
-    public void handleMouseInput() throws java.io.IOException {
+    public void handleMouseInput() throws IOException {
         super.handleMouseInput();
         int wheel = Mouse.getEventDWheel();
         if (wheel == 0) {
@@ -1080,41 +1285,41 @@ public class PanelClickGui extends GuiScreen {
         int my = height - Mouse.getEventY() * height / mc.displayHeight - 1;
         for (int i = panels.size() - 1; i >= 0; i--) {
             Panel p = panels.get(i);
-            if (mx >= p.x && mx <= p.x + PANEL_W && my >= p.y && my <= p.y + p.totalH) {
-                p.scroll = Math.max(0f, Math.min(p.maxScroll, p.scroll - Math.signum(wheel) * 14f));
+            if (p.over(mx, my)) {
+                p.scroll = Math.max(0f, Math.min(p.maxScroll, p.scroll - Math.signum(wheel) * 18f));
                 return;
             }
         }
     }
 
     @Override
-    protected void keyTyped(char typed, int keyCode) throws java.io.IOException {
-        if (bindingModule != null || bindingKey != null) {
+    protected void keyTyped(char typed, int keyCode) throws IOException {
+        if (listeningModule != null || listeningKey != null) {
             int value = (keyCode == Keyboard.KEY_ESCAPE || keyCode == Keyboard.KEY_DELETE || keyCode == Keyboard.KEY_BACK) ? 0 : keyCode;
-            if (bindingKey != null) {
-                bindingKey.setKey(value);
+            if (listeningKey != null) {
+                listeningKey.setKey(value);
             } else {
-                bindingModule.setBind(value);
+                listeningModule.setBind(value);
             }
-            markUnsaved(bindingModule);
-            bindingModule = null;
-            bindingKey = null;
+            markUnsaved(listeningModule);
+            listeningModule = null;
+            listeningKey = null;
             return;
         }
-        if (editingText != null || editingConfig) {
+        if (editingText != null || editingName) {
             if (keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER) {
                 commitEdit();
             } else if (keyCode == Keyboard.KEY_ESCAPE) {
                 editingText = null;
-                editingConfig = false;
+                editingName = false;
             } else if (keyCode == Keyboard.KEY_BACK) {
-                if (edit.length() > 0) {
-                    edit.setLength(edit.length() - 1);
+                if (buffer.length() > 0) {
+                    buffer = buffer.substring(0, buffer.length() - 1);
                 }
             } else if (ChatAllowedCharacters.isAllowedCharacter(typed)) {
                 int max = editingText != null ? editingText.getMaxLength() : 32;
-                if (edit.length() < max) {
-                    edit.append(typed);
+                if (buffer.length() < max) {
+                    buffer += typed;
                 }
             }
             return;
