@@ -40,6 +40,12 @@ public class Gui extends Module {
     /** Settings of the normal click GUI (hidden in ClickGui2 mode) and of ClickGui2 (hidden in ClickGui mode). */
     private final List<Setting> clickGuiSettings = new ArrayList<Setting>();
     private final List<Setting> clickGui2Settings;
+    /** Looks of the Panel mode, only shown there. */
+    private final List<Setting> panelSettings = new ArrayList<Setting>();
+    public static SliderSetting panelOpacity;
+    public static ButtonSetting panelShadow;
+    public static SliderSetting panelShadowSize;
+    public static SliderSetting panelTextOpacity;
 
     public Gui() {
         super("Gui", category.client, 54);
@@ -52,6 +58,25 @@ public class Gui extends Module {
         this.registerSetting(darkBackground = new ButtonSetting("Dark background", true));
         this.registerSetting(removePlayerModel = new ButtonSetting("Remove player model", false));
         this.registerSetting(removeWatermark = new ButtonSetting("Remove watermark", false));
+        this.registerSetting(panelOpacity = new SliderSetting("Opacity", "%", 78, 1, 100, 1));
+        this.registerSetting(panelShadow = new ButtonSetting("Shadow", true));
+        this.registerSetting(panelShadowSize = new SliderSetting("Shadow size", 8, 1, 50, 1));
+        this.registerSetting(panelTextOpacity = new SliderSetting("Text opacity", "%", 100, 1, 100, 1));
+        ButtonSetting resetLayout = new ButtonSetting("Reset panel layout", new Runnable() {
+            @Override
+            public void run() {
+                PanelClickGui.get().resetLayout();
+            }
+        });
+        this.registerSetting(resetLayout);
+        panelSettings.add(panelOpacity);
+        panelSettings.add(panelShadow);
+        panelSettings.add(panelShadowSize);
+        panelSettings.add(panelTextOpacity);
+        panelSettings.add(resetLayout);
+        for (Setting setting : panelSettings) {
+            setting.visible = false; // shown by guiUpdate once the Panel mode is selected
+        }
         clickGuiSettings.add(guiScale);
         clickGuiSettings.add(font);
         clickGuiSettings.add(backgroundBlur);
@@ -82,6 +107,9 @@ public class Gui extends Module {
         }
         for (Setting setting : clickGui2Settings) {
             setting.setVisible(clickGui2, this);
+        }
+        for (Setting setting : panelSettings) {
+            setting.setVisible(panel, this);
         }
     }
 

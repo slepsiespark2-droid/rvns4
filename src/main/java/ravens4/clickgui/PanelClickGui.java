@@ -184,22 +184,51 @@ public class PanelClickGui extends GuiScreen {
             panels.add(new Panel(n.substring(0, 1).toUpperCase() + n.substring(1), list, false));
         }
         panels.add(new Panel("Configs", Collections.<Module>emptyList(), true));
+        final java.util.List<String> order = java.util.Arrays.asList("Combat", "Player", "Movement", "Render", "Client", "Other", "Scripts");
+        Collections.sort(panels, new Comparator<Panel>() {
+            @Override
+            public int compare(Panel a, Panel b) {
+                return rank(a) - rank(b);
+            }
+
+            private int rank(Panel p) {
+                if (p.configs) {
+                    return 1000;
+                }
+                int i = order.indexOf(p.title);
+                return i < 0 ? 100 : i;
+            }
+        });
         built = true;
     }
 
-    // folded panels in rows, so nothing overlaps until you open one
+    // folded panels in one column at the left (a second column if the screen is too short)
     private void layout() {
-        float x = 10f;
-        float y = 10f;
+        float x = 4f;
+        float y = 2f;
         for (Panel p : panels) {
-            if (x + WIDTH > width - 6f && x > 10f) {
-                x = 10f;
-                y += HEADER + 8f;
+            if (y + HEADER > height - 26f && y > 2f) {
+                x += WIDTH + 6f;
+                y = 2f;
             }
             p.x = x;
             p.y = y;
-            x += WIDTH + 6f;
+            y += HEADER + 1f;
         }
+    }
+
+    /** Back to the default: every panel folded, in one column at the left. */
+    public void resetLayout() {
+        if (!built) {
+            build();
+        }
+        for (Panel p : panels) {
+            p.folded = true;
+            p.scroll = 0f;
+        }
+        layout();
+        saveState();
+        tell("Panel layout reset");
     }
 
     @Override
@@ -250,7 +279,7 @@ public class PanelClickGui extends GuiScreen {
         if (!dir.exists()) {
             dir.mkdirs();
         }
-        return new File(dir, "rvns4_panel_gui.txt");
+        return new File(dir, "rvns4_panel_gui_v2.txt");
     }
 
     private void saveState() {
@@ -301,6 +330,33 @@ public class PanelClickGui extends GuiScreen {
         return 0xFF9B5CFF;
     }
 
+    private static float opacity() {
+        ravens4.module.setting.impl.SliderSetting s = ravens4.module.impl.client.Gui.panelOpacity;
+        return s == null ? 0.78F : (float) (s.getInput() / 100.0);
+    }
+
+    private static float textOpacity() {
+        ravens4.module.setting.impl.SliderSetting s = ravens4.module.impl.client.Gui.panelTextOpacity;
+        return s == null ? 1.0F : (float) (s.getInput() / 100.0);
+    }
+
+    // the panel background with the chosen opacity
+    private static int bgColor() {
+        return (Math.max(1, Math.min(255, Math.round(255.0F * opacity()))) << 24) | 0x121217;
+    }
+
+    // the edge fades follow the panel background
+    private static int fadeColor() {
+        int alpha = Math.min(255, Math.round(255.0F * opacity() * 0xB0 / 0xC8));
+        return (alpha << 24) | 0x121217;
+    }
+
+    // text colour with the opening fade and the text opacity applied
+    private int ta(int color) {
+        int alpha = Math.round((color >>> 24) * fade * textOpacity());
+        return (alpha << 24) | (color & 0xFFFFFF);
+    }
+
     // colour with its alpha scaled by the opening fade
     private int a(int color) {
         int alpha = Math.round((color >>> 24) * fade);
@@ -321,10 +377,10 @@ public class PanelClickGui extends GuiScreen {
 
     private void text(RavenFontRenderer font, String s, float x, float top, float height, int color) {
         if (font == null) {
-            mc.fontRendererObj.drawString(s, (int) x, (int) (top + (height - 8f) / 2f), a(color));
+            mc.fontRendererObj.drawString(s, (int) x, (int) (top + (height - 8f) / 2f), ta(color));
             return;
         }
-        font.drawString(s, x, top + (height - font.getFontHeight()) / 2.0F + 1.0F, a(color));
+        font.drawString(s, x, top + (height - font.getFontHeight()) / 2.0F + 1.0F, ta(color));
     }
 
     private void textRight(RavenFontRenderer font, String s, float right, float top, float height, int color) {
@@ -442,11 +498,18 @@ public class PanelClickGui extends GuiScreen {
         end();
     }
 
-    // a soft shadow: a few translucent rounded rectangles, each a little larger and fainter
+    // a soft shadow: translucent rounded rectangles, each a little larger and fainter, size set in the Gui settings
     private void shadow(float x, float y, float w, float h, float radius) {
-        for (int i = 4; i >= 1; i--) {
-            float grow = i * 1.6F;
-            rrect(x - grow, y - grow + 2f, w + grow * 2f, h + grow * 2f, radius + grow, a(0x14000000));
+        ravens4.module.setting.impl.ButtonSetting on = ravens4.module.impl.client.Gui.panelShadow;
+        if (on != null && !on.isToggled()) {
+            return;
+        }
+        ravens4.module.setting.impl.SliderSetting sz = ravens4.module.impl.client.Gui.panelShadowSize;
+        float size = sz == null ? 8.0F : (float) sz.getInput();
+        int layers = 6;
+        for (int i = layers; i >= 1; i--) {
+            float grow = size * i / layers;
+            rrect(x - grow, y - grow + 2f, w + grow * 2f, h + grow * 2f, radius + grow, a(0x12000000));
         }
     }
 
@@ -557,7 +620,7 @@ public class PanelClickGui extends GuiScreen {
             float w = width(font, status) + 20.0F;
             float x = (sr.getScaledWidth() - w) / 2.0F;
             float y = sr.getScaledHeight() - 34.0F;
-            rrect(x, y, w, 18.0F, 6.0F, a(0xE0121217));
+            rrect(x, y, w, 18.0F, 6.0F, a(bgColor()));
             rect(x + 6.0F, y + 16.5F, x + w - 6.0F, y + 17.5F, a(accent));
             text(font, status, x + 10.0F, y, 18.0F, TEXT);
         }
@@ -590,7 +653,7 @@ public class PanelClickGui extends GuiScreen {
         float body = panel.body;
 
         shadow(x, y, WIDTH, total, RADIUS);
-        rrect(x, y, WIDTH, total, RADIUS, a(BG));
+        rrect(x, y, WIDTH, total, RADIUS, a(bgColor()));
         // a hairline rim catches the light along the edge
         rim(x, y, WIDTH, total, RADIUS, a(0x1EFFFFFF));
 
@@ -598,14 +661,6 @@ public class PanelClickGui extends GuiScreen {
         if (!panel.folded) {
             String count = panel.configs ? String.valueOf(configs.size()) : String.valueOf(enabledIn(panel));
             textRight(smallFont(), count, x + WIDTH - 10.0F, y + 1.0F, HEADER - 4.0F, FAINT);
-        }
-        float line = ease("line:" + panel.title, panel.folded ? 0.0F : 1.0F, 14.0F);
-        if (line > 0.01F) {
-            float half = (WIDTH - 16.0F) / 2.0F * line;
-            float cx = x + WIDTH / 2.0F;
-            // the accent line, with a soft glow under it
-            rect(cx - half, y + HEADER - 3.0F, cx + half, y + HEADER - 1.5F, a(accent));
-            rect(cx - half, y + HEADER - 1.5F, cx + half, y + HEADER + 1.0F, a(0x30000000 | accent & 0xFFFFFF));
         }
         hits.add(new Hit(Kind.HEADER, panel, null, x, y, x + WIDTH, y + HEADER));
         if (body <= 0.5F) {
@@ -628,10 +683,10 @@ public class PanelClickGui extends GuiScreen {
         if (panel.maxScroll > 0.5F) {
             // fades at the cut edges, so rows slide under instead of being chopped
             if (panel.shownScroll > 1.0F) {
-                drawGradientRect((int) x + 2, (int) clipTop, (int) (x + WIDTH) - 2, (int) clipTop + 8, a(0xB0121217), 0x00121217);
+                drawGradientRect((int) x + 2, (int) clipTop, (int) (x + WIDTH) - 2, (int) clipTop + 8, a(fadeColor()), 0x00121217);
             }
             if (panel.shownScroll < panel.maxScroll - 1.0F) {
-                drawGradientRect((int) x + 2, (int) clipBottom - 8, (int) (x + WIDTH) - 2, (int) clipBottom, 0x00121217, a(0xB0121217));
+                drawGradientRect((int) x + 2, (int) clipBottom - 8, (int) (x + WIDTH) - 2, (int) clipBottom, 0x00121217, a(fadeColor()));
             }
             float track = body - 4.0F;
             float bar = Math.max(14.0F, track * body / panel.content);
@@ -663,7 +718,7 @@ public class PanelClickGui extends GuiScreen {
         }
         float x = 6.0F;
         float y = sr.getScaledHeight() - 22.0F;
-        rrect(x, y, w, 16.0F, 8.0F, a(0xD0121217));
+        rrect(x, y, w, 16.0F, 8.0F, a(bgColor()));
         float cx = x + 10.0F;
         for (int i = 0; i < parts.length; i++) {
             if (i > 0) {
