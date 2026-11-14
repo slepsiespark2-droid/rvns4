@@ -23,6 +23,7 @@ import ravens4.utility.ThemePalette;
 import ravens4.utility.font.FontManager;
 import ravens4.utility.font.RavenFontRenderer;
 import ravens4.utility.shader.BlurUtils;
+import ravens4.utility.shader.KawaseBlur;
 import ravens4.utility.profile.Profile;
 import ravens4.utility.profile.ProfileManager;
 
@@ -619,17 +620,13 @@ public class PanelClickGui extends GuiScreen {
             shown[i] = t;
             measure(panels.get(i), sr, (1.0F - t) * -10.0F);
         }
-        // frosted glass: blur only what is behind the panels
+        // frosted glass: blur what is behind the panels. The blurred frame is cut to the panel shapes with textured
+        // shapes, so it does not depend on the mask texture the full screen blur uses.
         ravens4.module.setting.impl.SliderSetting panelBlur = ravens4.module.impl.client.Gui.panelBlur;
         if (panelBlur != null && panelBlur.getInput() > 0.0) {
-            BlurUtils.prepareBlur();
-            for (int i = 0; i < panels.size(); i++) {
-                Panel p = panels.get(i);
-                if (shown[i] > 0.02F) {
-                    rrect(p.x, p.drawY, WIDTH, p.total, RADIUS, 0xFF000000);
-                }
-            }
-            BlurUtils.blurEnd(2, (float) (3.0 * ((panelBlur.getInput() + 35.0) / 100.0)) * blurEase);
+            net.minecraft.client.shader.Framebuffer blurred =
+                    KawaseBlur.blurToBuffer(2, (float) (3.0 * ((panelBlur.getInput() + 35.0) / 100.0)) * blurEase);
+            drawBlurredPanels(blurred, shown, sr);
         }
         for (int i = 0; i < panels.size(); i++) {
             fade = shown[i];
@@ -652,6 +649,52 @@ public class PanelClickGui extends GuiScreen {
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
         GlStateManager.color(1f, 1f, 1f, 1f);
         super.drawScreen(mouseX, mouseY, partialTicks);
+    }
+
+    private void drawBlurredPanels(net.minecraft.client.shader.Framebuffer blurred, float[] shown, ScaledResolution sr) {
+        float sw = (float) sr.getScaledWidth_double();
+        float sh = (float) sr.getScaledHeight_double();
+        GlStateManager.enableTexture2D();
+        GlStateManager.disableAlpha();
+        GlStateManager.disableCull();
+        GlStateManager.enableBlend();
+        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        GlStateManager.bindTexture(blurred.framebufferTexture);
+        for (int i = 0; i < panels.size(); i++) {
+            Panel p = panels.get(i);
+            if (shown[i] <= 0.02F) {
+                continue;
+            }
+            GlStateManager.color(1.0F, 1.0F, 1.0F, shown[i]);
+            float r = Math.min(RADIUS, Math.min(WIDTH, p.total) / 2.0F);
+            GL11.glBegin(GL11.GL_TRIANGLE_FAN);
+            texVertex(p.x + WIDTH / 2.0F, p.drawY + p.total / 2.0F, sw, sh);
+            texVertex(p.x, p.drawY + r, sw, sh);
+            texArc(p.x + r, p.drawY + r, r, 180, 270, sw, sh);
+            texArc(p.x + WIDTH - r, p.drawY + r, r, 270, 360, sw, sh);
+            texArc(p.x + WIDTH - r, p.drawY + p.total - r, r, 0, 90, sw, sh);
+            texArc(p.x + r, p.drawY + p.total - r, r, 90, 180, sw, sh);
+            texVertex(p.x, p.drawY + r, sw, sh);
+            GL11.glEnd();
+        }
+        GlStateManager.bindTexture(0);
+        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        GlStateManager.disableBlend();
+        GlStateManager.enableAlpha();
+    }
+
+    // a vertex whose texture coordinate is where it lies on the screen
+    private static void texVertex(float x, float y, float screenW, float screenH) {
+        GL11.glTexCoord2f(x / screenW, 1.0F - y / screenH);
+        GL11.glVertex2f(x, y);
+    }
+
+    private static void texArc(float cx, float cy, float r, int from, int to, float screenW, float screenH) {
+        int steps = r < 0.5F ? 1 : 8;
+        for (int i = 0; i <= steps; i++) {
+            double ang = Math.toRadians(from + (to - from) * (double) i / steps);
+            texVertex((float) (cx + Math.cos(ang) * r), (float) (cy + Math.sin(ang) * r), screenW, screenH);
+        }
     }
 
     // where the panel is this frame, how tall, and how far it scrolls

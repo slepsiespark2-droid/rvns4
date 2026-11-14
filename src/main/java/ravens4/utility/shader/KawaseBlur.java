@@ -87,6 +87,30 @@ public class KawaseBlur {
         GlStateManager.disableBlend();
     }
 
+    /**
+     * Blurs the current frame without any mask and returns the blurred buffer (a third of the screen size).
+     * For callers that cut their own shape out of it, instead of relying on the mask texture of renderBlur.
+     */
+    public static Framebuffer blurToBuffer(int iterations, float offset) {
+        if (currentIterations != iterations || framebuffer.framebufferWidth != mc.displayWidth || framebuffer.framebufferHeight != mc.displayHeight) {
+            initFrameBuffers(iterations);
+            currentIterations = iterations;
+        }
+
+        renderFBO(framebufferList.get(1), mc.getFramebuffer().framebufferTexture, kawaseDown, offset);
+
+        for (int i = 1; i < iterations; i++) {
+            renderFBO(framebufferList.get(i + 1), framebufferList.get(i).framebufferTexture, kawaseDown, offset);
+        }
+
+        for (int i = iterations; i > 1; i--) {
+            renderFBO(framebufferList.get(i - 1), framebufferList.get(i).framebufferTexture, kawaseUp, offset);
+        }
+
+        mc.getFramebuffer().bindFramebuffer(true);
+        return framebufferList.get(1);
+    }
+
     private static void renderFBO(Framebuffer framebuffer, int framebufferTexture, ShaderUtils shader, float offset) {
         framebuffer.framebufferClear();
         framebuffer.bindFramebuffer(false);
