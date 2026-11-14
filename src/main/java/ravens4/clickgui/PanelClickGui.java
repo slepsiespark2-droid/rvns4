@@ -447,11 +447,14 @@ public class PanelClickGui extends GuiScreen {
         GlStateManager.enableBlend();
         GlStateManager.disableTexture2D();
         GlStateManager.disableCull();
+        // the alpha test throws away anything fainter than about 10%, which is exactly what a shadow is made of
+        GlStateManager.disableAlpha();
         GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
         GlStateManager.color((color >> 16 & 255) / 255f, (color >> 8 & 255) / 255f, (color & 255) / 255f, (color >>> 24) / 255f);
     }
 
     private static void end() {
+        GlStateManager.enableAlpha();
         GlStateManager.enableTexture2D();
         GlStateManager.disableBlend();
         GlStateManager.color(1f, 1f, 1f, 1f);
@@ -509,7 +512,7 @@ public class PanelClickGui extends GuiScreen {
         int layers = 6;
         for (int i = layers; i >= 1; i--) {
             float grow = size * i / layers;
-            rrect(x - grow, y - grow + 2f, w + grow * 2f, h + grow * 2f, radius + grow, a(0x12000000));
+            rrect(x - grow, y - grow + 2f, w + grow * 2f, h + grow * 2f, radius + grow, a(0x14000000));
         }
     }
 
