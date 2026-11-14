@@ -22,6 +22,7 @@ import ravens4.utility.RenderUtils;
 import ravens4.utility.ThemePalette;
 import ravens4.utility.font.FontManager;
 import ravens4.utility.font.RavenFontRenderer;
+import ravens4.utility.shader.BlurUtils;
 import ravens4.utility.profile.Profile;
 import ravens4.utility.profile.ProfileManager;
 
@@ -501,14 +502,14 @@ public class PanelClickGui extends GuiScreen {
         end();
     }
 
-    // a soft shadow: translucent rounded rectangles, each a little larger and fainter, size set in the Gui settings
+    // a soft shadow: translucent rounded rectangles, each a little larger and fainter. The Shadow setting
+    // goes from 0 (off) to 8 (widest).
     private void shadow(float x, float y, float w, float h, float radius) {
-        ravens4.module.setting.impl.ButtonSetting on = ravens4.module.impl.client.Gui.panelShadow;
-        if (on != null && !on.isToggled()) {
+        ravens4.module.setting.impl.SliderSetting level = ravens4.module.impl.client.Gui.panelShadow;
+        if (level == null || level.getInput() <= 0.0) {
             return;
         }
-        ravens4.module.setting.impl.SliderSetting sz = ravens4.module.impl.client.Gui.panelShadowSize;
-        float size = sz == null ? 8.0F : (float) sz.getInput();
+        float size = (float) level.getInput() * 2.0F;
         int layers = 6;
         for (int i = layers; i >= 1; i--) {
             float grow = size * i / layers;
@@ -597,6 +598,15 @@ public class PanelClickGui extends GuiScreen {
             scrolling = null;
         }
 
+        float blurEase = Math.min(1.0F, elapsed / 250.0F);
+        // blur of the whole world behind the menu: the same blur and strength as the normal click GUI
+        ravens4.module.setting.impl.SliderSetting backgroundBlur = ravens4.module.impl.client.Gui.backgroundBlur;
+        if (backgroundBlur != null && backgroundBlur.getInput() > 0.0) {
+            BlurUtils.prepareBlur();
+            rect(0.0F, 0.0F, sr.getScaledWidth(), sr.getScaledHeight(), 0xFF000000);
+            BlurUtils.blurEnd(2, (float) (3.0 * ((backgroundBlur.getInput() + 35.0) / 100.0)) * blurEase);
+        }
+
         // the world dims, with a faint wash of the accent from below
         fade = Math.min(1.0F, elapsed / 180.0F);
         drawGradientRect(0, 0, sr.getScaledWidth(), sr.getScaledHeight(), a(0x70000000), a(0x30000000 | accent & 0xFFFFFF));
@@ -608,6 +618,18 @@ public class PanelClickGui extends GuiScreen {
             t = 1.0F - (1.0F - t) * (1.0F - t) * (1.0F - t);
             shown[i] = t;
             measure(panels.get(i), sr, (1.0F - t) * -10.0F);
+        }
+        // frosted glass: blur only what is behind the panels
+        ravens4.module.setting.impl.SliderSetting panelBlur = ravens4.module.impl.client.Gui.panelBlur;
+        if (panelBlur != null && panelBlur.getInput() > 0.0) {
+            BlurUtils.prepareBlur();
+            for (int i = 0; i < panels.size(); i++) {
+                Panel p = panels.get(i);
+                if (shown[i] > 0.02F) {
+                    rrect(p.x, p.drawY, WIDTH, p.total, RADIUS, 0xFF000000);
+                }
+            }
+            BlurUtils.blurEnd(2, (float) (3.0 * ((panelBlur.getInput() + 35.0) / 100.0)) * blurEase);
         }
         for (int i = 0; i < panels.size(); i++) {
             fade = shown[i];
@@ -784,7 +806,6 @@ public class PanelClickGui extends GuiScreen {
         }
         pushClip(x, innerTop, WIDTH, innerBottom - innerTop);
         rrect(x + 4.0F, start, WIDTH - 8.0F, full, 4.0F, a(SETTINGS_BG));
-        rect(x + 4.0F, start + 3.0F, x + 5.0F, start + full - 3.0F, a(0x90000000 | accent & 0xFFFFFF));
         clipTop = innerTop;
         clipBottom = innerBottom;
         float left = x + 11.0F;

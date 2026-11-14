@@ -43,8 +43,8 @@ public class Gui extends Module {
     /** Looks of the Panel mode, only shown there. */
     private final List<Setting> panelSettings = new ArrayList<Setting>();
     public static SliderSetting panelOpacity;
-    public static ButtonSetting panelShadow;
-    public static SliderSetting panelShadowSize;
+    public static SliderSetting panelShadow;
+    public static SliderSetting panelBlur;
     public static SliderSetting panelTextOpacity;
 
     public Gui() {
@@ -59,8 +59,8 @@ public class Gui extends Module {
         this.registerSetting(removePlayerModel = new ButtonSetting("Remove player model", false));
         this.registerSetting(removeWatermark = new ButtonSetting("Remove watermark", false));
         this.registerSetting(panelOpacity = new SliderSetting("Opacity", "%", 78, 1, 100, 1));
-        this.registerSetting(panelShadow = new ButtonSetting("Shadow", true));
-        this.registerSetting(panelShadowSize = new SliderSetting("Shadow size", 8, 1, 50, 1));
+        this.registerSetting(panelShadow = new SliderSetting("Shadow", 0, 0, 8, 1)); // 0 = off
+        this.registerSetting(panelBlur = new SliderSetting("Panel blur", "%", 0, 0, 100, 1));
         this.registerSetting(panelTextOpacity = new SliderSetting("Text opacity", "%", 100, 1, 100, 1));
         ButtonSetting resetLayout = new ButtonSetting("Reset panel layout", new Runnable() {
             @Override
@@ -71,7 +71,7 @@ public class Gui extends Module {
         this.registerSetting(resetLayout);
         panelSettings.add(panelOpacity);
         panelSettings.add(panelShadow);
-        panelSettings.add(panelShadowSize);
+        panelSettings.add(panelBlur);
         panelSettings.add(panelTextOpacity);
         panelSettings.add(resetLayout);
         for (Setting setting : panelSettings) {
@@ -101,8 +101,8 @@ public class Gui extends Module {
         boolean clickGui2 = isClickGui2();
         boolean panel = isPanel();
         for (Setting setting : clickGuiSettings) {
-            // the accent theme is shared with the Panel mode, everything else only belongs to the normal ClickGui
-            boolean accentOnly = setting == outlineTheme;
+            // the accent theme and the background blur are shared with the Panel mode, everything else only belongs to the normal ClickGui
+            boolean accentOnly = setting == outlineTheme || setting == backgroundBlur;
             setting.setVisible(accentOnly ? !clickGui2 : (!clickGui2 && !panel), this);
         }
         for (Setting setting : clickGui2Settings) {
