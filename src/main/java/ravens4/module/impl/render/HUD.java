@@ -12,6 +12,8 @@ import ravens4.utility.ThemePalette;
 import ravens4.utility.Utils;
 import ravens4.utility.font.FontManager;
 import ravens4.utility.font.RavenFontRenderer;
+import ravens4.utility.shader.KawaseBloom;
+import ravens4.utility.shader.KawaseBlur;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
@@ -23,7 +25,12 @@ import net.minecraftforge.fml.common.gameevent.TickEvent.RenderTickEvent;
 import java.awt.Color;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class HUD extends Module {
     private static final String[] COLOR_MODES = new String[] { "Static", "Gradient", "Rainbow" };
@@ -63,7 +70,7 @@ public class HUD extends Module {
     private static final String[] OUTLINE_MODES = new String[] { "None", "Full", "Side" };
     private static final String[] HUD_FONT_OPTIONS = FontManager.getHudFontOptions();
     private static final int BACKGROUND_COLOR = new Color(0, 0, 0, 110).getRGB();
-    private static final String[] MODES = new String[] { "Ordinary", "DLayout1" };
+    private static final String[] MODES = new String[] { "Ordinary", "DLayout1", "DLayout2" };
     // Categories DLayout1 was originally written against also included "NetWork" and "Fun",
     // which don't exist in this codebase's Module.category enum - only the categories that
     // are actually real here are exposed as toggles.
@@ -86,6 +93,10 @@ public class HUD extends Module {
     public static SliderSetting dlayout1Theme;
     public static ColorSetting dlayout1DetailsColor;
     public static ColorSetting dlayout1BackgroundColor;
+    public static SliderSetting dlayout2BackgroundOpacity;
+    public static ButtonSetting dlayout2Blur;
+    public static ButtonSetting dlayout2Bloom;
+    public static SliderSetting dlayout2BloomStrength;
 
     private boolean isAlphabeticalSort;
     private boolean canShowInfo;
@@ -120,36 +131,46 @@ public class HUD extends Module {
         this.registerSetting(dlayout1Other = new ButtonSetting("Other", true));
         this.registerSetting(dlayout1Client = new ButtonSetting("Client", true));
         this.registerSetting(dlayout1Scripts = new ButtonSetting("Scripts", true));
-        this.registerSetting(dlayout1PaddingX = new SliderSetting("Padding X", "px", 2, 0, 5, 1));
-        this.registerSetting(dlayout1PaddingY = new SliderSetting("Padding Y", "px", 1, 0, 5, 1));
-        this.registerSetting(dlayout1Rounding = new SliderSetting("Rounding", "px", 3, 0, 16, 1));
+        this.registerSetting(dlayout1PaddingX = new SliderSetting("Padding X", "px", 2, 0, 10, 0.5));
+        this.registerSetting(dlayout1PaddingY = new SliderSetting("Padding Y", "px", 1, 0, 10, 0.5));
+        this.registerSetting(dlayout1Rounding = new SliderSetting("Rounding", "px", 3, 0, 16, 0.5));
         this.registerSetting(dlayout1Theme = new SliderSetting("Theme", 0, ThemePalette.getThemeOptions()));
         this.registerSetting(dlayout1DetailsColor = new ColorSetting("Details color", 190, 190, 190));
         this.registerSetting(dlayout1BackgroundColor = new ColorSetting("Background color", 0, 0, 0, 110));
+        this.registerSetting(dlayout2BackgroundOpacity = new SliderSetting("Background opacity", "%", 70, 0, 100, 1));
+        this.registerSetting(dlayout2Blur = new ButtonSetting("Blur", false));
+        this.registerSetting(dlayout2Bloom = new ButtonSetting("Bloom", false));
+        this.registerSetting(dlayout2BloomStrength = new SliderSetting("Bloom strength", "%", 100, 10, 300, 10));
     }
 
     @Override
     public void guiUpdate() {
         boolean dlayout1Selected = mode != null && (int) mode.getInput() == 1;
+        boolean dlayout2Selected = mode != null && (int) mode.getInput() == 2;
+        boolean layoutSelected = dlayout1Selected || dlayout2Selected;
         if (colorMode != null) colorMode.setVisible(!dlayout1Selected, this);
-        if (alignRight != null) alignRight.setVisible(!dlayout1Selected, this);
-        if (alphabeticalSort != null) alphabeticalSort.setVisible(!dlayout1Selected, this);
-        if (drawBackground != null) drawBackground.setVisible(!dlayout1Selected, this);
+        if (alignRight != null) alignRight.setVisible(!layoutSelected, this);
+        if (alphabeticalSort != null) alphabeticalSort.setVisible(!layoutSelected, this);
+        if (drawBackground != null) drawBackground.setVisible(!layoutSelected, this);
         if (textShadow != null) textShadow.setVisible(!dlayout1Selected, this);
-        if (outline != null) outline.setVisible(!dlayout1Selected, this);
-        if (dlayout1Combat != null) dlayout1Combat.setVisible(dlayout1Selected, this);
-        if (dlayout1Movement != null) dlayout1Movement.setVisible(dlayout1Selected, this);
-        if (dlayout1Player != null) dlayout1Player.setVisible(dlayout1Selected, this);
-        if (dlayout1Render != null) dlayout1Render.setVisible(dlayout1Selected, this);
-        if (dlayout1Other != null) dlayout1Other.setVisible(dlayout1Selected, this);
-        if (dlayout1Client != null) dlayout1Client.setVisible(dlayout1Selected, this);
-        if (dlayout1Scripts != null) dlayout1Scripts.setVisible(dlayout1Selected, this);
-        if (dlayout1PaddingX != null) dlayout1PaddingX.setVisible(dlayout1Selected, this);
-        if (dlayout1PaddingY != null) dlayout1PaddingY.setVisible(dlayout1Selected, this);
-        if (dlayout1Rounding != null) dlayout1Rounding.setVisible(dlayout1Selected, this);
-        if (dlayout1Theme != null) dlayout1Theme.setVisible(dlayout1Selected, this);
-        if (dlayout1DetailsColor != null) dlayout1DetailsColor.setVisible(dlayout1Selected, this);
-        if (dlayout1BackgroundColor != null) dlayout1BackgroundColor.setVisible(dlayout1Selected, this);
+        if (outline != null) outline.setVisible(!layoutSelected, this);
+        if (dlayout1Combat != null) dlayout1Combat.setVisible(layoutSelected, this);
+        if (dlayout1Movement != null) dlayout1Movement.setVisible(layoutSelected, this);
+        if (dlayout1Player != null) dlayout1Player.setVisible(layoutSelected, this);
+        if (dlayout1Render != null) dlayout1Render.setVisible(layoutSelected, this);
+        if (dlayout1Other != null) dlayout1Other.setVisible(layoutSelected, this);
+        if (dlayout1Client != null) dlayout1Client.setVisible(layoutSelected, this);
+        if (dlayout1Scripts != null) dlayout1Scripts.setVisible(layoutSelected, this);
+        if (dlayout1PaddingX != null) dlayout1PaddingX.setVisible(layoutSelected, this);
+        if (dlayout1PaddingY != null) dlayout1PaddingY.setVisible(layoutSelected, this);
+        if (dlayout1Rounding != null) dlayout1Rounding.setVisible(layoutSelected, this);
+        if (dlayout1Theme != null) dlayout1Theme.setVisible(layoutSelected, this);
+        if (dlayout1DetailsColor != null) dlayout1DetailsColor.setVisible(layoutSelected, this);
+        if (dlayout1BackgroundColor != null) dlayout1BackgroundColor.setVisible(layoutSelected, this);
+        if (dlayout2BackgroundOpacity != null) dlayout2BackgroundOpacity.setVisible(dlayout2Selected, this);
+        if (dlayout2Blur != null) dlayout2Blur.setVisible(dlayout2Selected, this);
+        if (dlayout2Bloom != null) dlayout2Bloom.setVisible(dlayout2Selected, this);
+        if (dlayout2BloomStrength != null) dlayout2BloomStrength.setVisible(dlayout2Selected && dlayout2Bloom != null && dlayout2Bloom.isToggled(), this);
 
         int colorModeValue = colorMode == null ? 0 : (int) colorMode.getInput();
         if (hudColor != null) {
@@ -181,6 +202,17 @@ public class HUD extends Module {
     public void onEnable() {
         guiUpdate();
         ModuleManager.sort();
+        d2Rows.clear();
+        d2ByModule.clear();
+        d2LastFrameNs = 0L;
+        d2Signature = Integer.MIN_VALUE;
+        d2Measure = true;
+    }
+
+    @Override
+    public void onDisable() {
+        d2Rows.clear();
+        d2ByModule.clear();
     }
 
     @Override
@@ -234,6 +266,10 @@ public class HUD extends Module {
 
         if (mode != null && (int) mode.getInput() == 1) {
             renderDLayout1();
+            return;
+        }
+        if (mode != null && (int) mode.getInput() == 2) {
+            renderDLayout2();
             return;
         }
 
@@ -483,6 +519,488 @@ public class HUD extends Module {
         net.minecraft.client.renderer.GlStateManager.disableBlend();
         net.minecraft.client.renderer.GlStateManager.resetColor();
         net.minecraft.client.renderer.GlStateManager.popMatrix();
+    }
+
+    // ============================== DLayout2 mode ==============================
+    // Port of the "Mod Overlay" script (DLayout2): the enabled modules of the chosen categories as a list that
+    // slides in and out, longest first, on rounded translucent backgrounds. The list sits at the HUD position
+    // (Edit position) and grows to the left when that is on the right half of the screen, to the right otherwise.
+    // Name colour, gradient/rainbow, theme, font and scale come from the shared HUD settings.
+
+    private static final float D2_ANIM_SPEED = 6.0F;
+    private static final float D2_GAP = 4.0F;
+    private static final float D2_CORNER_SMOOTHING = 16.0F;
+    private static final float D2_BLUR_OFFSET = 3.0F;
+    private static final float D2_BLOOM_OFFSET = 3.0F;
+    private static final int D2_MAX_SEGMENTS = 48;
+    private static final float[][] D2_COS = new float[D2_MAX_SEGMENTS + 1][];
+    private static final float[][] D2_SIN = new float[D2_MAX_SEGMENTS + 1][];
+
+    private static final class D2Row {
+        final Module module;
+        String name = "";
+        String status = "";
+        float nameWidth;
+        float width;
+        float height;
+        float progress;
+        boolean enabled = true;
+        float rx, ry, rw, rh, rc, ra;
+        float cornerCur;
+        boolean cornerInit;
+        int textColor;
+        boolean visible;
+
+        D2Row(Module module) {
+            this.module = module;
+        }
+    }
+
+    private final List<D2Row> d2Rows = new ArrayList<D2Row>();
+    private final Map<Module, D2Row> d2ByModule = new HashMap<Module, D2Row>();
+    private long d2LastFrameNs;
+    private boolean d2Measure = true;
+    private int d2Signature = Integer.MIN_VALUE;
+    private boolean d2RoundRight;
+    private net.minecraft.client.shader.Framebuffer d2GlowBuffer;
+    private int d2ScaleFactor = 1;
+
+    private static float d2Smooth(float t) {
+        return t * t * (3.0F - 2.0F * t);
+    }
+
+    private static int d2Argb(int color, float alpha) {
+        return ((int) (Math.max(0.0F, Math.min(1.0F, alpha)) * 255.0F) << 24) | (color & 0xFFFFFF);
+    }
+
+    private void renderDLayout2() {
+        long nano = System.nanoTime();
+        float elapsed = d2LastFrameNs == 0L ? 0.0F : (float) ((nano - d2LastFrameNs) / 1.0E9);
+        d2LastFrameNs = nano;
+        if (elapsed > 0.1F) {
+            elapsed = 0.1F;
+        }
+
+        RavenFontRenderer font = getHudFontRenderer();
+        boolean showDetails = showInfo != null && showInfo.isToggled();
+        boolean toLower = lowercase != null && lowercase.isToggled();
+        int signature = java.util.Arrays.hashCode(new Object[] { showDetails, toLower, getSelectedFontName(), getSelectedFontScale() });
+
+        // which modules should be on the list right now
+        Set<Module> wanted = new HashSet<Module>();
+        try {
+            for (Module module : ModuleManager.organizedModules) {
+                if (module == this || !module.isEnabled() || module.isHidden() || module == ModuleManager.commandLine) {
+                    continue;
+                }
+                if (!isDlayout1CategoryEnabled(module.moduleCategory())) {
+                    continue;
+                }
+                wanted.add(module);
+            }
+        } catch (Exception exception) {
+            return;
+        }
+        for (D2Row row : d2Rows) {
+            row.enabled = wanted.contains(row.module);
+        }
+        for (Module module : wanted) {
+            if (!d2ByModule.containsKey(module)) {
+                D2Row row = new D2Row(module);
+                d2Rows.add(row);
+                d2ByModule.put(module, row);
+                d2Measure = true;
+            }
+        }
+        boolean settingsChanged = signature != d2Signature;
+        d2Signature = signature;
+        for (D2Row row : d2Rows) {
+            if (!row.enabled) {
+                continue;
+            }
+            String name = getHudText(row.module);
+            String info = showDetails && row.module.getInfo() != null ? row.module.getInfo() : "";
+            if (toLower) {
+                info = info.toLowerCase();
+            }
+            if (settingsChanged || !name.equals(row.name) || !info.equals(row.status)) {
+                row.name = name;
+                row.status = info;
+                d2Measure = true;
+            }
+        }
+        if (d2Rows.isEmpty()) {
+            return;
+        }
+
+        // slide in and out
+        float step = elapsed * D2_ANIM_SPEED;
+        java.util.Iterator<D2Row> it = d2Rows.iterator();
+        while (it.hasNext()) {
+            D2Row row = it.next();
+            if (row.enabled) {
+                if (row.progress != 1.0F) {
+                    row.progress = Math.min(1.0F, row.progress + step);
+                }
+            } else {
+                row.progress -= step;
+                if (!(row.progress > 0.0F)) {
+                    it.remove();
+                    d2ByModule.remove(row.module);
+                }
+            }
+        }
+        if (d2Rows.isEmpty()) {
+            return;
+        }
+
+        float gap = D2_GAP * getSelectedFontScale();
+        if (d2Measure) {
+            float fontHeight = font.getFontHeight();
+            for (D2Row row : d2Rows) {
+                row.nameWidth = font.getStringWidth(row.name);
+                row.height = fontHeight;
+                row.width = row.nameWidth;
+                if (!row.status.isEmpty()) {
+                    row.width = font.getStringWidth(row.status) + gap + row.nameWidth;
+                }
+            }
+            Collections.sort(d2Rows, new java.util.Comparator<D2Row>() {
+                @Override
+                public int compare(D2Row a, D2Row b) {
+                    return b.width > a.width ? 1 : (a.width > b.width ? -1 : a.name.compareTo(b.name));
+                }
+            });
+            d2Measure = false;
+        }
+
+        ScaledResolution resolution = new ScaledResolution(mc);
+        float screenWidth = resolution.getScaledWidth();
+        float screenHeight = resolution.getScaledHeight();
+        d2ScaleFactor = Math.max(1, resolution.getScaleFactor());
+        float px = (float) dlayout1PaddingX.getInput();
+        float py = (float) dlayout1PaddingY.getInput();
+        float rounding = (float) dlayout1Rounding.getInput();
+        float cornerLimit = (px + py) + (float) Math.sqrt(2.0 * px * py);
+        float opacity = dlayout2BackgroundOpacity == null ? 0.7F : (float) (dlayout2BackgroundOpacity.getInput() / 100.0);
+        int backgroundRgb = dlayout1BackgroundColor == null ? 0 : (dlayout1BackgroundColor.getColor() & 0xFFFFFF);
+        int detailRgb = dlayout1DetailsColor == null ? 0xAAAAAA : (dlayout1DetailsColor.getColor() & 0xFFFFFF);
+        int themeIndex = dlayout1Theme == null ? 0 : (int) dlayout1Theme.getInput();
+        long themeTime = System.currentTimeMillis();
+
+        float twiceX = px + px;
+        float anchorX = Math.max(0.0F, Math.min(screenWidth, posX));
+        float anchorY = Math.max(0.0F, Math.min(screenHeight, posY));
+        boolean rightAligned = anchorX >= screenWidth * 0.5F;
+        d2RoundRight = !rightAligned;
+        int count = d2Rows.size();
+        float y = 0.0F;
+        for (int i = 0; i < count; i++) {
+            D2Row row = d2Rows.get(i);
+            float alpha = row.progress == 1.0F ? 1.0F : d2Smooth(Math.max(0.0F, row.progress));
+            row.ra = alpha;
+            row.rx = rightAligned ? anchorX - twiceX - row.width * alpha : anchorX - row.width * (1.0F - alpha);
+            row.ry = anchorY + y;
+            row.rw = twiceX + row.width;
+            float baseRowHeight = py + py + row.height;
+            float rowOverlap = rounding > 0.0F ? 1.0F / d2ScaleFactor : 0.0F;
+            row.rh = Math.max(0.0F, baseRowHeight - rowOverlap);
+            row.visible = (int) (alpha * 255.0F) > 3;
+            int color = themeIndex > 0
+                    ? ThemePalette.getThemeColor(themeIndex, themeTime, i * 0.06F)
+                    : getHudColor(hudWavePhase(i * getVerticalWaveStep(), row.rx + row.rw * 0.5));
+            row.textColor = color & 0xFFFFFF;
+            y += alpha * row.rh;
+        }
+
+        // rows share their corners smoothly: a row never rounds further than the step to the next one
+        float blend = Math.min(1.0F, elapsed * D2_CORNER_SMOOTHING);
+        for (int i = 0; i < count; i++) {
+            D2Row row = d2Rows.get(i);
+            float target = Math.min(rounding, cornerLimit);
+            if (i + 1 < count) {
+                D2Row next = d2Rows.get(i + 1);
+                float edgeDifference = rightAligned ? next.rx - row.rx : (row.rx + row.rw) - (next.rx + next.rw);
+                target = Math.min(edgeDifference, target);
+            }
+            target = Math.max(0.0F, Math.min(target, Math.min(row.rw, row.rh)));
+            if (!row.cornerInit) {
+                row.cornerCur = target;
+                row.cornerInit = true;
+            } else {
+                row.cornerCur += (target - row.cornerCur) * blend;
+            }
+            row.rc = row.cornerCur;
+        }
+
+        if (dlayout2Blur != null && dlayout2Blur.isToggled()) {
+            net.minecraft.client.shader.Framebuffer blurred = KawaseBlur.blurToBuffer(2, D2_BLUR_OFFSET);
+            d2DrawBlurredShapes(blurred, screenWidth, screenHeight);
+        }
+        if (dlayout2Bloom != null && dlayout2Bloom.isToggled()) {
+            d2DrawBloom(screenWidth, screenHeight);
+        }
+        d2DrawShapes(backgroundRgb, opacity);
+
+        boolean shadow = shouldDrawTextShadow();
+        for (int i = 0; i < count; i++) {
+            D2Row row = d2Rows.get(i);
+            if (!row.visible) {
+                continue;
+            }
+            float textY = row.ry + py;
+            float textX = rightAligned ? anchorX - px - row.width * row.ra : anchorX + px - row.width * (1.0F - row.ra);
+            font.drawString(row.name, textX, textY, d2Argb(row.textColor, row.ra), shadow);
+            if (!row.status.isEmpty()) {
+                font.drawString(row.status, textX + row.nameWidth + gap, textY, d2Argb(detailRgb, row.ra), shadow);
+            }
+        }
+    }
+
+    private void d2DrawShapes(int rgb, float opacity) {
+        net.minecraft.client.renderer.GlStateManager.enableBlend();
+        net.minecraft.client.renderer.GlStateManager.disableTexture2D();
+        net.minecraft.client.renderer.GlStateManager.disableCull();
+        net.minecraft.client.renderer.GlStateManager.disableAlpha();
+        net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        org.lwjgl.opengl.GL11.glBegin(org.lwjgl.opengl.GL11.GL_TRIANGLES);
+        float red = ((rgb >> 16) & 0xFF) / 255.0F;
+        float green = ((rgb >> 8) & 0xFF) / 255.0F;
+        float blue = (rgb & 0xFF) / 255.0F;
+        for (D2Row row : d2Rows) {
+            if (!row.visible) {
+                continue;
+            }
+            d2Shape(row.rx, row.ry, row.rw, row.rh, row.rc, red, green, blue, opacity * row.ra);
+        }
+        org.lwjgl.opengl.GL11.glEnd();
+        net.minecraft.client.renderer.GlStateManager.enableAlpha();
+        net.minecraft.client.renderer.GlStateManager.enableTexture2D();
+        net.minecraft.client.renderer.GlStateManager.disableBlend();
+        net.minecraft.client.renderer.GlStateManager.resetColor();
+    }
+
+    // Glow: the rows in their text colour are drawn into a buffer, blurred, and the rows themselves are cut out
+    // of the blurred picture again, so only the halo around them is added to the screen (no mask texture needed).
+    private void d2DrawBloom(float screenWidth, float screenHeight) {
+        d2GlowBuffer = RenderUtils.createFrameBuffer(d2GlowBuffer);
+        d2GlowBuffer.framebufferClear();
+        d2GlowBuffer.bindFramebuffer(false);
+        net.minecraft.client.renderer.GlStateManager.enableBlend();
+        net.minecraft.client.renderer.GlStateManager.disableTexture2D();
+        net.minecraft.client.renderer.GlStateManager.disableCull();
+        net.minecraft.client.renderer.GlStateManager.disableAlpha();
+        net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        org.lwjgl.opengl.GL11.glBegin(org.lwjgl.opengl.GL11.GL_TRIANGLES);
+        for (D2Row row : d2Rows) {
+            if (!row.visible) {
+                continue;
+            }
+            d2Shape(row.rx, row.ry, row.rw, row.rh, row.rc, ((row.textColor >> 16) & 0xFF) / 255.0F,
+                    ((row.textColor >> 8) & 0xFF) / 255.0F, (row.textColor & 0xFF) / 255.0F, row.ra);
+        }
+        org.lwjgl.opengl.GL11.glEnd();
+        mc.getFramebuffer().bindFramebuffer(true);
+
+        net.minecraft.client.shader.Framebuffer glow = KawaseBloom.blurTextureToBuffer(d2GlowBuffer.framebufferTexture, 2, D2_BLOOM_OFFSET);
+
+        // erase the rows from the blurred glow
+        glow.bindFramebuffer(true);
+        net.minecraft.client.renderer.GlStateManager.disableTexture2D();
+        net.minecraft.client.renderer.GlStateManager.enableBlend();
+        net.minecraft.client.renderer.GlStateManager.blendFunc(org.lwjgl.opengl.GL11.GL_ZERO, org.lwjgl.opengl.GL11.GL_ZERO);
+        org.lwjgl.opengl.GL11.glBegin(org.lwjgl.opengl.GL11.GL_TRIANGLES);
+        for (D2Row row : d2Rows) {
+            if (!row.visible) {
+                continue;
+            }
+            d2Shape(row.rx, row.ry, row.rw, row.rh, row.rc, 0.0F, 0.0F, 0.0F, 1.0F);
+        }
+        org.lwjgl.opengl.GL11.glEnd();
+        mc.getFramebuffer().bindFramebuffer(true);
+
+        // add the halo to the screen, as often as the strength asks for
+        net.minecraft.client.renderer.GlStateManager.enableTexture2D();
+        net.minecraft.client.renderer.GlStateManager.enableBlend();
+        net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        net.minecraft.client.renderer.GlStateManager.bindTexture(glow.framebufferTexture);
+        float strength = dlayout2BloomStrength == null ? 1.0F : (float) (dlayout2BloomStrength.getInput() / 100.0);
+        for (int pass = 0; pass < 3; pass++) {
+            float amount = Math.min(1.0F, strength - pass);
+            if (amount <= 0.0F) {
+                break;
+            }
+            org.lwjgl.opengl.GL11.glColor4f(1.0F, 1.0F, 1.0F, amount);
+            org.lwjgl.opengl.GL11.glBegin(org.lwjgl.opengl.GL11.GL_QUADS);
+            org.lwjgl.opengl.GL11.glTexCoord2f(0.0F, 1.0F);
+            org.lwjgl.opengl.GL11.glVertex2f(0.0F, 0.0F);
+            org.lwjgl.opengl.GL11.glTexCoord2f(0.0F, 0.0F);
+            org.lwjgl.opengl.GL11.glVertex2f(0.0F, screenHeight);
+            org.lwjgl.opengl.GL11.glTexCoord2f(1.0F, 0.0F);
+            org.lwjgl.opengl.GL11.glVertex2f(screenWidth, screenHeight);
+            org.lwjgl.opengl.GL11.glTexCoord2f(1.0F, 1.0F);
+            org.lwjgl.opengl.GL11.glVertex2f(screenWidth, 0.0F);
+            org.lwjgl.opengl.GL11.glEnd();
+        }
+        net.minecraft.client.renderer.GlStateManager.bindTexture(0);
+        net.minecraft.client.renderer.GlStateManager.enableAlpha();
+        net.minecraft.client.renderer.GlStateManager.disableBlend();
+        net.minecraft.client.renderer.GlStateManager.resetColor();
+    }
+
+    // the blurred frame, cut to the row shapes (no mask texture needed)
+    private void d2DrawBlurredShapes(net.minecraft.client.shader.Framebuffer blurred, float screenWidth, float screenHeight) {
+        net.minecraft.client.renderer.GlStateManager.enableTexture2D();
+        net.minecraft.client.renderer.GlStateManager.disableAlpha();
+        net.minecraft.client.renderer.GlStateManager.disableCull();
+        net.minecraft.client.renderer.GlStateManager.enableBlend();
+        net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        net.minecraft.client.renderer.GlStateManager.bindTexture(blurred.framebufferTexture);
+        org.lwjgl.opengl.GL11.glBegin(org.lwjgl.opengl.GL11.GL_TRIANGLES);
+        for (D2Row row : d2Rows) {
+            if (!row.visible) {
+                continue;
+            }
+            org.lwjgl.opengl.GL11.glColor4f(1.0F, 1.0F, 1.0F, row.ra);
+            d2ShapeTextured(row.rx, row.ry, row.rw, row.rh, row.rc, screenWidth, screenHeight);
+        }
+        org.lwjgl.opengl.GL11.glEnd();
+        net.minecraft.client.renderer.GlStateManager.bindTexture(0);
+        net.minecraft.client.renderer.GlStateManager.enableAlpha();
+        net.minecraft.client.renderer.GlStateManager.disableBlend();
+        net.minecraft.client.renderer.GlStateManager.resetColor();
+    }
+
+    private static void d2Vertex(float x, float y) {
+        org.lwjgl.opengl.GL11.glVertex2f(x, y);
+    }
+
+    private static void d2TexVertex(float x, float y, float screenWidth, float screenHeight) {
+        org.lwjgl.opengl.GL11.glTexCoord2f(x / screenWidth, 1.0F - y / screenHeight);
+        org.lwjgl.opengl.GL11.glVertex2f(x, y);
+    }
+
+    private static void d2Quad(float x1, float y1, float x2, float y2) {
+        d2Vertex(x1, y1);
+        d2Vertex(x1, y2);
+        d2Vertex(x2, y2);
+        d2Vertex(x1, y1);
+        d2Vertex(x2, y2);
+        d2Vertex(x2, y1);
+    }
+
+    private static void d2TexQuad(float x1, float y1, float x2, float y2, float sw, float sh) {
+        d2TexVertex(x1, y1, sw, sh);
+        d2TexVertex(x1, y2, sw, sh);
+        d2TexVertex(x2, y2, sw, sh);
+        d2TexVertex(x1, y1, sw, sh);
+        d2TexVertex(x2, y2, sw, sh);
+        d2TexVertex(x2, y1, sw, sh);
+    }
+
+    private static void d2BuildTables(int n) {
+        if (D2_COS[n] != null) {
+            return;
+        }
+        float[] cs = new float[n + 1];
+        float[] sn = new float[n + 1];
+        for (int i = 0; i <= n; i++) {
+            double angle = Math.PI - (Math.PI / 2.0) * i / n;
+            cs[i] = (float) Math.cos(angle);
+            sn[i] = (float) Math.sin(angle);
+        }
+        D2_COS[n] = cs;
+        D2_SIN[n] = sn;
+    }
+
+    // one row: square on the screen side, one smoothly rounded corner at the bottom on the free side,
+    // with a thin faded fringe on the curve so the edge is smooth
+    private void d2Shape(float x, float y, float w, float h, float corner, float r, float g, float b, float a) {
+        float x2 = x + w;
+        float y2 = y + h;
+        org.lwjgl.opengl.GL11.glColor4f(r, g, b, a);
+        if (corner < 0.5F) {
+            d2Quad(x, y, x2, y2);
+            return;
+        }
+        corner = Math.min(corner, Math.min(w, h));
+        if (d2RoundRight) {
+            d2Quad(x, y, x2 - corner, y2);
+            d2Quad(x2 - corner, y, x2, y2 - corner);
+        } else {
+            d2Quad(x + corner, y, x2, y2);
+            d2Quad(x, y, x + corner, y2 - corner);
+        }
+        int n = (int) Math.ceil(corner * d2ScaleFactor * 2.0F);
+        n = Math.max(12, Math.min(D2_MAX_SEGMENTS, n));
+        d2BuildTables(n);
+        float[] cs = D2_COS[n];
+        float[] sn = D2_SIN[n];
+
+        float cx = d2RoundRight ? x2 - corner : x + corner;
+        float cy = y2 - corner;
+        float dir = d2RoundRight ? -1.0F : 1.0F;
+        float half = 0.75F / d2ScaleFactor;
+        float inner = Math.max(0.0F, corner - half);
+        float outer = corner + half;
+        for (int i = 0; i < n; i++) {
+            d2Vertex(cx, cy);
+            d2Vertex(cx + dir * inner * cs[i], cy + inner * sn[i]);
+            d2Vertex(cx + dir * inner * cs[i + 1], cy + inner * sn[i + 1]);
+        }
+        for (int i = 0; i < n; i++) {
+            float ix0 = cx + dir * inner * cs[i];
+            float iy0 = cy + inner * sn[i];
+            float ix1 = cx + dir * inner * cs[i + 1];
+            float iy1 = cy + inner * sn[i + 1];
+            float ox0 = cx + dir * outer * cs[i];
+            float oy0 = cy + outer * sn[i];
+            float ox1 = cx + dir * outer * cs[i + 1];
+            float oy1 = cy + outer * sn[i + 1];
+
+            org.lwjgl.opengl.GL11.glColor4f(r, g, b, a);
+            d2Vertex(ix0, iy0);
+            org.lwjgl.opengl.GL11.glColor4f(r, g, b, 0.0F);
+            d2Vertex(ox0, oy0);
+            d2Vertex(ox1, oy1);
+
+            d2Vertex(ox1, oy1);
+            org.lwjgl.opengl.GL11.glColor4f(r, g, b, a);
+            d2Vertex(ix1, iy1);
+            d2Vertex(ix0, iy0);
+        }
+        org.lwjgl.opengl.GL11.glColor4f(r, g, b, a);
+    }
+
+    // the same row shape, textured with the blurred frame (without the fringe)
+    private void d2ShapeTextured(float x, float y, float w, float h, float corner, float sw, float sh) {
+        float x2 = x + w;
+        float y2 = y + h;
+        if (corner < 0.5F) {
+            d2TexQuad(x, y, x2, y2, sw, sh);
+            return;
+        }
+        corner = Math.min(corner, Math.min(w, h));
+        if (d2RoundRight) {
+            d2TexQuad(x, y, x2 - corner, y2, sw, sh);
+            d2TexQuad(x2 - corner, y, x2, y2 - corner, sw, sh);
+        } else {
+            d2TexQuad(x + corner, y, x2, y2, sw, sh);
+            d2TexQuad(x, y, x + corner, y2 - corner, sw, sh);
+        }
+        int n = (int) Math.ceil(corner * d2ScaleFactor * 2.0F);
+        n = Math.max(12, Math.min(D2_MAX_SEGMENTS, n));
+        d2BuildTables(n);
+        float[] cs = D2_COS[n];
+        float[] sn = D2_SIN[n];
+        float cx = d2RoundRight ? x2 - corner : x + corner;
+        float cy = y2 - corner;
+        float dir = d2RoundRight ? -1.0F : 1.0F;
+        for (int i = 0; i < n; i++) {
+            d2TexVertex(cx, cy, sw, sh);
+            d2TexVertex(cx + dir * corner * cs[i], cy + corner * sn[i], sw, sh);
+            d2TexVertex(cx + dir * corner * cs[i + 1], cy + corner * sn[i + 1], sw, sh);
+        }
     }
 
     public static int getLongestModule() {

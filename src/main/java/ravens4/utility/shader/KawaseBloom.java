@@ -102,6 +102,39 @@ public class KawaseBloom implements IMinecraftInstance {
         GlStateManager.blendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     }
 
+    /**
+     * Blurs a texture with the bloom shaders, without any mask, and returns the blurred buffer (half the screen
+     * size). For callers that cut the shapes out of the glow themselves.
+     */
+    public static Framebuffer blurTextureToBuffer(int sourceTexture, int iterations, float offset) {
+        if (currentIterations != iterations || (framebuffer.framebufferWidth != mc.displayWidth || framebuffer.framebufferHeight != mc.displayHeight)) {
+            initFramebuffers(iterations);
+            currentIterations = iterations;
+        }
+
+        RenderUtils.setAlphaLimit(0);
+        GlStateManager.enableBlend();
+        GlStateManager.blendFunc(GL_ONE, GL_ONE);
+        GL11.glClearColor(0, 0, 0, 0);
+
+        float currentOffset = offset;
+        renderFBO(framebufferList.get(1), sourceTexture, kawaseDown, currentOffset);
+
+        for (int i = 1; i < iterations; i++) {
+            currentOffset = offset / (float) Math.pow(1.5, i);
+            renderFBO(framebufferList.get(i + 1), framebufferList.get(i).framebufferTexture, kawaseDown, currentOffset);
+        }
+
+        for (int i = iterations; i > 1; i--) {
+            currentOffset = offset / (float) Math.pow(1.5, i - 1);
+            renderFBO(framebufferList.get(i - 1), framebufferList.get(i).framebufferTexture, kawaseUp, currentOffset);
+        }
+
+        mc.getFramebuffer().bindFramebuffer(true);
+        GlStateManager.blendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        return framebufferList.get(1);
+    }
+
     private static void renderFBO(Framebuffer framebuffer, int framebufferTexture, ShaderUtils shader, float offset) {
         framebuffer.framebufferClear();
         framebuffer.bindFramebuffer(false);

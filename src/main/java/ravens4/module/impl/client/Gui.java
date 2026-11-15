@@ -60,7 +60,7 @@ public class Gui extends Module {
         this.registerSetting(removeWatermark = new ButtonSetting("Remove watermark", false));
         this.registerSetting(panelOpacity = new SliderSetting("Opacity", "%", 78, 1, 100, 1));
         this.registerSetting(panelShadow = new SliderSetting("Shadow", 0, 0, 8, 1)); // 0 = off
-        this.registerSetting(panelBlur = new SliderSetting("Panel blur", "%", 0, 0, 100, 1));
+        this.registerSetting(panelBlur = new SliderSetting("Panel blur", 0, 0, 30, 0.1));
         this.registerSetting(panelTextOpacity = new SliderSetting("Text opacity", "%", 100, 1, 100, 1));
         ButtonSetting resetLayout = new ButtonSetting("Reset panel layout", new Runnable() {
             @Override

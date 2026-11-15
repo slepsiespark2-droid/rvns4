@@ -625,7 +625,7 @@ public class PanelClickGui extends GuiScreen {
         ravens4.module.setting.impl.SliderSetting panelBlur = ravens4.module.impl.client.Gui.panelBlur;
         if (panelBlur != null && panelBlur.getInput() > 0.0) {
             net.minecraft.client.shader.Framebuffer blurred =
-                    KawaseBlur.blurToBuffer(2, (float) (3.0 * ((panelBlur.getInput() + 35.0) / 100.0)) * blurEase);
+                    KawaseBlur.blurToBuffer(2, (float) (panelBlur.getInput() * 0.15) * blurEase);
             drawBlurredPanels(blurred, shown, sr);
         }
         for (int i = 0; i < panels.size(); i++) {
