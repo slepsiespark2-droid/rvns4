@@ -16,7 +16,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.1.1
-      - run: gradle build --no-daemon -Porg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64
+      - name: Build (retries when a download server is down)
+        run: |
+          for attempt in 1 2 3 4; do
+            if gradle build --no-daemon -Porg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64; then
+              exit 0
+            fi
+            echo "Build failed (attempt $attempt of 4). Waiting 90 seconds before trying again..."
+            sleep 90
+          done
+          exit 1
       - uses: actions/upload-artifact@v4
         with:
           name: jar
