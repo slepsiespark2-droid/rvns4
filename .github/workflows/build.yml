@@ -16,14 +16,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.1.1
-      - name: Build (retries when a download server is down)
+      - name: Build (retries, and switches the mixin download server between tries)
         run: |
           for attempt in 1 2 3 4; do
-            if gradle build --no-daemon -Porg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64; then
+            extra=""
+            if [ $((attempt % 2)) -eq 1 ]; then
+              extra="-PspongeMixin=true"
+            fi
+            echo "Attempt $attempt of 4 $extra"
+            if gradle build --no-daemon -Porg.gradle.java.installations.fromEnv=JAVA_HOME_8_X64 $extra; then
               exit 0
             fi
-            echo "Build failed (attempt $attempt of 4). Waiting 90 seconds before trying again..."
-            sleep 90
+            echo "Build failed. Waiting 60 seconds before trying again..."
+            sleep 60
           done
           exit 1
       - uses: actions/upload-artifact@v4

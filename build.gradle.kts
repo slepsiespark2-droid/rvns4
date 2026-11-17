@@ -50,6 +50,13 @@ sourceSets.main {
 
 repositories {
     mavenCentral()
+    // Backup source for the mixin library, used when the build is started with -PspongeMixin=true
+    // (the Polyfrost server below goes down now and then).
+    if (project.hasProperty("spongeMixin")) {
+        maven("https://repo.spongepowered.org/repository/maven-public/") {
+            content { includeModule("org.spongepowered", "mixin") }
+        }
+    }
     maven("https://repo.polyfrost.cc/releases/")
 }
 
