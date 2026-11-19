@@ -28,7 +28,7 @@ import ravens4.script.packet.serverbound.*;
  * Rise interface (click GUI, target info, FPS/BPS counters, themes). Originally a runtime script;
  * now compiled with the client and driven by {@link ravens4.module.impl.client.Interface}.
  */
-public class InterfaceScript extends ScriptDefaults {
+public class Interface extends ScriptDefaults {
     public static final ScriptDefaults.modules modules = new ScriptDefaults.modules("Interface");
     public static final String scriptName = "Interface";
 

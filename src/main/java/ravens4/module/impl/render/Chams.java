@@ -26,7 +26,7 @@ public class Chams extends Module {
 
     @SubscribeEvent
     public void onPreRender(Pre e) {
-        Entity entity = e.entity;
+        Entity entity = e.entityPlayer;
         if (entity == mc.thePlayer && (!renderSelf.isToggled() || mc.currentScreen != null)) {
             return;
         }
@@ -46,7 +46,7 @@ public class Chams extends Module {
 
     @SubscribeEvent
     public void onPostRender(Post e) {
-        Entity entity = e.entity;
+        Entity entity = e.entityPlayer;
         if (entity == mc.thePlayer && (!renderSelf.isToggled() || mc.currentScreen != null)) {
             return;
         }

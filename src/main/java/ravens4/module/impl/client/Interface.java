@@ -12,7 +12,6 @@ import ravens4.event.GuiUpdateEvent;
 import ravens4.event.KeyPressEvent;
 import ravens4.event.PreUpdateEvent;
 import ravens4.module.Module;
-import ravens4.module.impl.client.rise.InterfaceScript;
 import ravens4.script.ScriptDefaults;
 import ravens4.script.model.Entity;
 import ravens4.utility.Utils;
@@ -22,10 +21,10 @@ import ravens4.mixin.impl.accessor.IAccessorMinecraft;
 
 /**
  * Rise interface module: click GUI, target info, FPS/BPS counters and themes.
- * The UI itself lives in {@link InterfaceScript}; this class owns its lifecycle and forwards events.
+ * The UI itself lives in {@link ravens4.module.impl.client.rise.Interface}; this class owns its lifecycle and forwards events.
  */
 public class Interface extends Module {
-    private final InterfaceScript script = new InterfaceScript();
+    private final ravens4.module.impl.client.rise.Interface script = new ravens4.module.impl.client.rise.Interface();
     private final Events events = new Events();
     private boolean eventsRegistered = false;
 
@@ -73,7 +72,7 @@ public class Interface extends Module {
         }
     }
 
-    public InterfaceScript getScript() {
+    public ravens4.module.impl.client.rise.Interface getScript() {
         return script;
     }
 
