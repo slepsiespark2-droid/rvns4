@@ -49,6 +49,11 @@ public final class FontManager {
         return getRendererForPixelHeight(family, DEFAULT_CLICK_GUI_HEADER_HEIGHT);
     }
 
+    /** Renderer whose text is roughly {@code pixelHeight} tall, for UIs that pick their own font sizes. */
+    public static RavenFontRenderer getRendererForHeight(String family, float pixelHeight) {
+        return getRendererForPixelHeight(family, pixelHeight);
+    }
+
     public static RavenFontRenderer getClickGuiSettingRenderer(String family) {
         return getRendererForPixelHeight(family, DEFAULT_CLICK_GUI_SETTING_HEIGHT);
     }

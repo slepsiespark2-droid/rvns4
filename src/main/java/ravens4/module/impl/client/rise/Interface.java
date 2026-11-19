@@ -69,6 +69,8 @@ public void onLoad() {
     int savedBind = readSavedBindFromConfig();
     currentGuiBind = savedBind;
     modules.registerButton("Font Prefix", false);
+    registerFontSetting();
+    registerToggleSettings();
     modules.registerKey("GUI Keybind", savedBind);
     loadPersistedState();
 }
@@ -556,6 +558,9 @@ static void reloadRenderCategoryInRavenGui() {
 }
 
 static void openRiseClickGui() {
+    if (!toggleOn(showClickGuiSetting)) {
+        return;
+    }
     ensureGuisCreated();
     activeGuiMode = clickGuiModule != null ? clickGuiModule.getModeName() : "Modern";
     prevMouse0 = keybinds.isMouseDown(0);
@@ -738,6 +743,10 @@ static void pollGuiKeybindInGame() {
         return;
     }
     boolean down = isGuiBindPressedRaw();
+    if (!toggleOn(showClickGuiSetting)) {
+        prevGuiBindDown = down;
+        return;
+    }
     if (down && !prevGuiBindDown && keyToggleCooldown.finished(100L)) {
         prevGuiBindDown = true;
         keyToggleCooldown.reset();
@@ -909,6 +918,52 @@ static boolean readConfigBool(String key, boolean defVal) {
     } catch (Exception ignored) {
     }
     return defVal;
+}
+
+static ravens4.module.setting.impl.SliderSetting fontSetting = null;
+
+static ravens4.module.setting.impl.ButtonSetting showClickGuiSetting = null;
+static ravens4.module.setting.impl.ButtonSetting showHudSetting = null;
+static ravens4.module.setting.impl.ButtonSetting showWatermarkSetting = null;
+
+static void registerToggleSettings() {
+    ravens4.module.Module host = ravens4.module.ModuleManager.interfaceModule;
+    if (host == null || showClickGuiSetting != null) {
+        return;
+    }
+    host.registerSetting(showClickGuiSetting = new ravens4.module.setting.impl.ButtonSetting("ClickGUI", true));
+    host.registerSetting(showHudSetting = new ravens4.module.setting.impl.ButtonSetting("HUD", true));
+    host.registerSetting(showWatermarkSetting = new ravens4.module.setting.impl.ButtonSetting("Watermark", true));
+}
+
+static boolean toggleOn(ravens4.module.setting.impl.ButtonSetting setting) {
+    return setting == null || setting.isToggled();
+}
+
+static void registerFontSetting() {
+    ravens4.module.Module host = ravens4.module.ModuleManager.interfaceModule;
+    if (host == null || fontSetting != null) {
+        return;
+    }
+    fontSetting = new ravens4.module.setting.impl.SliderSetting("Font", 0, ravens4.utility.font.FontManager.getHudFontOptions());
+    host.registerSetting(fontSetting);
+}
+
+/** Selected custom font family, or null when the Minecraft font is selected. */
+static String currentFontFamily() {
+    try {
+        if (fontSetting == null) {
+            return null;
+        }
+        String[] opts = fontSetting.getOptions();
+        if (opts == null || opts.length == 0) {
+            return null;
+        }
+        String family = opts[clampInt((int) Math.round(fontSetting.getInput()), 0, opts.length - 1)];
+        return ravens4.utility.font.FontManager.isMinecraftFont(family) ? null : family;
+    } catch (Exception e) {
+        return null;
+    }
 }
 
 static boolean isFontPrefixEnabled() {
@@ -1338,12 +1393,29 @@ static final class RiseFont {
         if (text == null || text.isEmpty()) {
             return 0.0f;
         }
+        ravens4.utility.font.RavenFontRenderer custom = customRenderer();
+        if (custom != null) {
+            return custom.getStringWidth(text);
+        }
         String formatted = applyFontPrefix(text);
         return render.getFontWidth(formatted) * this.scale;
     }
 
     float height() {
+        ravens4.utility.font.RavenFontRenderer custom = customRenderer();
+        if (custom != null) {
+            return custom.getFontHeight();
+        }
         return render.getFontHeight() * this.scale;
+    }
+
+    /** Bundled-font renderer for this size, or null to use the Minecraft font. */
+    private ravens4.utility.font.RavenFontRenderer customRenderer() {
+        String family = currentFontFamily();
+        if (family == null) {
+            return null;
+        }
+        return ravens4.utility.font.FontManager.getRendererForHeight(family, this.ptSize / 2.0f);
     }
 
     void draw(String text, double x, double y, int color) {
@@ -1375,9 +1447,16 @@ static final class RiseFont {
         if (alpha <= 4) {
             return;
         }
-        String formatted = applyFontPrefix(text);
         ravens4.utility.RenderUtils.setAlphaLimit(0.0f);
-        render.text2d(formatted, (float) x, (float) y, this.scale, color, shadow);
+        ravens4.utility.font.RavenFontRenderer custom = customRenderer();
+        if (custom != null) {
+            net.minecraft.client.renderer.GlStateManager.enableBlend();
+            net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+            custom.drawString(text, (float) x, (float) y, color, shadow);
+            net.minecraft.client.renderer.GlStateManager.disableBlend();
+        } else {
+            render.text2d(applyFontPrefix(text), (float) x, (float) y, this.scale, color, shadow);
+        }
         gl.resetColor();
     }
 }
@@ -2067,31 +2146,24 @@ static final class ShaderPipeline {
         else normalLayer2.add(r);
     }
 
+    private static net.minecraft.client.shader.Framebuffer blurMaskBuffer = null;
+    private static net.minecraft.client.shader.Framebuffer bloomSourceBuffer = null;
+
     static void executeAll(boolean shadersEnabled, int blurPasses, float blurOffset, int bloomPasses, float bloomOffset) {
         if (shadersEnabled && !blurTasks.isEmpty()) {
-            gl.scissor(false);
-            render.blur.prepare();
-            for (int i = 0; i < blurTasks.size(); i++) {
-                try {
-                    blurTasks.get(i).run();
-                } catch (Exception ignored) {
-                }
+            try {
+                runBlur(blurPasses, blurOffset);
+            } catch (Throwable t) {
+                restoreGlState();
             }
-            gl.scissor(false);
-            render.blur.apply(blurPasses, blurOffset);
         }
 
         if (shadersEnabled && !bloomTasks.isEmpty()) {
-            gl.scissor(false);
-            render.bloom.prepare();
-            for (int i = 0; i < bloomTasks.size(); i++) {
-                try {
-                    bloomTasks.get(i).run();
-                } catch (Exception ignored) {
-                }
+            try {
+                runBloom(bloomPasses, bloomOffset);
+            } catch (Throwable t) {
+                restoreGlState();
             }
-            gl.scissor(false);
-            render.bloom.apply(bloomPasses, bloomOffset);
         }
 
         runList(normalLayer0);
@@ -2099,6 +2171,116 @@ static final class ShaderPipeline {
         runList(normalLayer2);
 
         clearAll();
+    }
+
+    private static void restoreGlState() {
+        net.minecraft.client.Minecraft.getMinecraft().getFramebuffer().bindFramebuffer(true);
+        net.minecraft.client.renderer.GlStateManager.enableAlpha();
+        net.minecraft.client.renderer.GlStateManager.enableTexture2D();
+        net.minecraft.client.renderer.GlStateManager.disableBlend();
+        net.minecraft.client.renderer.GlStateManager.bindTexture(0);
+        net.minecraft.client.renderer.GlStateManager.resetColor();
+    }
+
+    private static void runTasks(List<Runnable> tasks) {
+        for (int i = 0; i < tasks.size(); i++) {
+            try {
+                tasks.get(i).run();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /** Textured quad over the whole screen (scaled gui coordinates), drawn with whatever blend function is set. */
+    private static void drawScreenTexture(int texture, float sw, float sh) {
+        net.minecraft.client.renderer.GlStateManager.enableTexture2D();
+        net.minecraft.client.renderer.GlStateManager.disableAlpha();
+        net.minecraft.client.renderer.GlStateManager.disableCull();
+        net.minecraft.client.renderer.GlStateManager.enableBlend();
+        net.minecraft.client.renderer.GlStateManager.bindTexture(texture);
+        org.lwjgl.opengl.GL11.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+        org.lwjgl.opengl.GL11.glBegin(org.lwjgl.opengl.GL11.GL_QUADS);
+        org.lwjgl.opengl.GL11.glTexCoord2f(0.0f, 1.0f);
+        org.lwjgl.opengl.GL11.glVertex2f(0.0f, 0.0f);
+        org.lwjgl.opengl.GL11.glTexCoord2f(0.0f, 0.0f);
+        org.lwjgl.opengl.GL11.glVertex2f(0.0f, sh);
+        org.lwjgl.opengl.GL11.glTexCoord2f(1.0f, 0.0f);
+        org.lwjgl.opengl.GL11.glVertex2f(sw, sh);
+        org.lwjgl.opengl.GL11.glTexCoord2f(1.0f, 1.0f);
+        org.lwjgl.opengl.GL11.glVertex2f(sw, 0.0f);
+        org.lwjgl.opengl.GL11.glEnd();
+        net.minecraft.client.renderer.GlStateManager.bindTexture(0);
+    }
+
+    /**
+     * Blur behind the shapes: the shapes are drawn into a mask buffer, the frame is blurred, the blurred
+     * picture is multiplied by the mask and put over the screen. Same idea as HUD.java (no mask shader).
+     */
+    private static void runBlur(int passes, float offset) {
+        int[] disp = client.getDisplaySize();
+        float sw = disp[0];
+        float sh = disp[1];
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+
+        gl.scissor(false);
+        blurMaskBuffer = ravens4.utility.RenderUtils.createFrameBuffer(blurMaskBuffer);
+        blurMaskBuffer.framebufferClear();
+        blurMaskBuffer.bindFramebuffer(false);
+        runTasks(blurTasks);
+        mc.getFramebuffer().bindFramebuffer(true);
+
+        net.minecraft.client.shader.Framebuffer blurred = ravens4.utility.shader.KawaseBlur.blurToBuffer(passes, offset);
+
+        // blurred picture * mask alpha, written into the mask buffer (alpha is kept)
+        blurMaskBuffer.bindFramebuffer(false);
+        net.minecraft.client.renderer.GlStateManager.enableBlend();
+        net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(
+                org.lwjgl.opengl.GL11.GL_DST_ALPHA, org.lwjgl.opengl.GL11.GL_ZERO,
+                org.lwjgl.opengl.GL11.GL_ZERO, org.lwjgl.opengl.GL11.GL_ONE);
+        drawScreenTexture(blurred.framebufferTexture, sw, sh);
+        mc.getFramebuffer().bindFramebuffer(true);
+
+        // masked blur over the screen (premultiplied by the mask)
+        net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(
+                org.lwjgl.opengl.GL11.GL_ONE, org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA,
+                org.lwjgl.opengl.GL11.GL_ONE, org.lwjgl.opengl.GL11.GL_ZERO);
+        drawScreenTexture(blurMaskBuffer.framebufferTexture, sw, sh);
+        net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        restoreGlState();
+    }
+
+    /**
+     * Glow around the shapes: shapes are drawn into a source buffer, blurred, the shapes themselves are
+     * cut out of the blur again (only the halo stays) and the halo is added to the screen.
+     */
+    private static void runBloom(int passes, float offset) {
+        int[] disp = client.getDisplaySize();
+        float sw = disp[0];
+        float sh = disp[1];
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+
+        gl.scissor(false);
+        bloomSourceBuffer = ravens4.utility.RenderUtils.createFrameBuffer(bloomSourceBuffer);
+        bloomSourceBuffer.framebufferClear();
+        bloomSourceBuffer.bindFramebuffer(false);
+        runTasks(bloomTasks);
+        mc.getFramebuffer().bindFramebuffer(true);
+
+        net.minecraft.client.shader.Framebuffer glow = ravens4.utility.shader.KawaseBloom.blurTextureToBuffer(bloomSourceBuffer.framebufferTexture, passes, offset);
+
+        // erase the shapes from the blurred glow
+        glow.bindFramebuffer(true);
+        net.minecraft.client.renderer.GlStateManager.enableBlend();
+        net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(
+                org.lwjgl.opengl.GL11.GL_ZERO, org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA,
+                org.lwjgl.opengl.GL11.GL_ZERO, org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA);
+        drawScreenTexture(bloomSourceBuffer.framebufferTexture, sw, sh);
+        mc.getFramebuffer().bindFramebuffer(true);
+
+        // add the halo to the screen
+        net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        drawScreenTexture(glow.framebufferTexture, sw, sh);
+        restoreGlState();
     }
 
     private static void runList(List<Runnable> tasks) {
@@ -4433,6 +4615,7 @@ static final class InterfaceEngine {
 
     static void onRender2D(RiseInterfaceModule hud, float partialTicks) {
         if (client.getPlayer() == null) return;
+        if (!toggleOn(showHudSetting)) return;
         if (allEntries.isEmpty()) {
             rebuildEntries();
             onTick(hud);
@@ -4613,6 +4796,7 @@ static final class InterfaceEngine {
                         }
                     }
 
+                    if (toggleOn(showWatermarkSetting)) {
                     if (isMc) {
                         RiseFont.of(32).drawShadow(CLIENT_NAME, 6.0, 6.0, activeTheme.firstColor().getRGB());
                     } else {
@@ -4620,6 +4804,7 @@ static final class InterfaceEngine {
                     }
                     if (!customTag.isEmpty()) {
                         RiseFont.F18.draw(customTag, 6.0 + RiseFont.F36.width(CLIENT_NAME) + 2.0, 6.0, activeTheme.secondColor().getRGB());
+                    }
                     }
                 }
             });
@@ -4642,6 +4827,7 @@ static final class InterfaceEngine {
                     }
                 }
 
+                if (toggleOn(showWatermarkSetting)) {
                 if (isMc) {
                     RiseFont.of(32).drawShadow(CLIENT_NAME, 6.0, 6.0, activeTheme.firstColor().getRGB());
                 } else {
@@ -4649,6 +4835,7 @@ static final class InterfaceEngine {
                 }
                 if (!customTag.isEmpty()) {
                     RiseFont.F18.draw(customTag, 6.0 + RiseFont.F36.width(CLIENT_NAME) + 2.0, 6.0, activeTheme.secondColor().getRGB());
+                }
                 }
 
                 int infoCol = -3355444;
@@ -4700,9 +4887,11 @@ static final class InterfaceEngine {
                     listFont.drawShadow(e.rawName, e.pos.x, e.pos.y, Color.WHITE.getRGB());
                 }
 
-                DrawUtil.rect(0.0, 10.0, 185.0, 12.0, Palette.withAlpha(Color.WHITE, 100));
-                RiseFont.F32.drawShadow("\u00a76\u00a7lWURST", 4.0, 7.5, new Color(235, 130, 20).getRGB());
-                listFont.draw("v6 MC 1.8.9", 95.0, 12.5, Color.BLACK.getRGB());
+                if (toggleOn(showWatermarkSetting)) {
+                    DrawUtil.rect(0.0, 10.0, 185.0, 12.0, Palette.withAlpha(Color.WHITE, 100));
+                    RiseFont.F32.drawShadow("\u00a76\u00a7lWURST", 4.0, 7.5, new Color(235, 130, 20).getRGB());
+                    listFont.draw("v6 MC 1.8.9", 95.0, 12.5, Color.BLACK.getRGB());
+                }
             }
         });
     }
@@ -4762,7 +4951,7 @@ static final class InterfaceEngine {
                 }
 
                 int mainCol = "Rainbow".equals(colorMode) ? DrawUtil.rainbowColor(1000).getRGB() : activeTheme.firstColor().getRGB();
-                if (watermark != null) {
+                if (watermark != null && toggleOn(showWatermarkSetting)) {
                     listFont.drawShadow(watermark, 3.0, 3.0, mainCol);
                 }
 
@@ -4814,7 +5003,9 @@ static final class InterfaceEngine {
                     double dw = e.nameWidth + e.tagWidth + 5.0;
                     DrawUtil.rect(dx - 1.0, dy - 2.0, dw, rowH, Color.BLACK);
                 }
-                DrawUtil.roundedRect(2.0, 3.0, wmWidth, 15.0, 4.0, Color.BLACK);
+                if (toggleOn(showWatermarkSetting)) {
+                    DrawUtil.roundedRect(2.0, 3.0, wmWidth, 15.0, 4.0, Color.BLACK);
+                }
             }
         });
 
@@ -4828,7 +5019,9 @@ static final class InterfaceEngine {
                     double dw = e.nameWidth + e.tagWidth + 5.0;
                     DrawUtil.rect(dx - 1.0, dy - 2.0, dw, rowH, Color.BLACK);
                 }
-                DrawUtil.roundedRect(2.0, 3.0, wmWidth - 1.0, 15.0, 5.0, Color.BLACK);
+                if (toggleOn(showWatermarkSetting)) {
+                    DrawUtil.roundedRect(2.0, 3.0, wmWidth - 1.0, 15.0, 5.0, Color.BLACK);
+                }
             }
         });
 
@@ -4849,13 +5042,15 @@ static final class InterfaceEngine {
                     }
                 }
 
-                DrawUtil.roundedRect(2.0, 3.0, wmWidth, 15.0, 4.0, new Color(0, 0, 0, 100));
-                float xOff = 0.0f;
-                double textY = customFont ? 5.5 : 6.5;
-                for (int i = 0; i < wmText.length(); i++) {
-                    String ch = String.valueOf(wmText.charAt(i));
-                    font.drawShadow(ch, 6.0 + xOff, textY, activeTheme.accentAt(i, i).getRGB());
-                    xOff += font.width(ch);
+                if (toggleOn(showWatermarkSetting)) {
+                    DrawUtil.roundedRect(2.0, 3.0, wmWidth, 15.0, 4.0, new Color(0, 0, 0, 100));
+                    float xOff = 0.0f;
+                    double textY = customFont ? 5.5 : 6.5;
+                    for (int i = 0; i < wmText.length(); i++) {
+                        String ch = String.valueOf(wmText.charAt(i));
+                        font.drawShadow(ch, 6.0 + xOff, textY, activeTheme.accentAt(i, i).getRGB());
+                        xOff += font.width(ch);
+                    }
                 }
             }
         });
@@ -7816,6 +8011,11 @@ static final class DropdownPanel {
     double y = 0.0;
     private double lastWidth = 103.2;
     private double lastScale = 0.8;
+    /** Tallest the body may get before the panel scrolls internally (set by DropdownGui each frame). */
+    double maxBodyH = 100000.0;
+    private double contentH = 0.0;
+    private double panelTargetScroll = 0.0;
+    private final Animation panelScrollAnim = new Animation(Easing.EASE_OUT_EXPO, 200L);
 
     private final Map<ravens4.module.setting.Setting, Boolean> modeAccordionOpen =
             new HashMap<ravens4.module.setting.Setting, Boolean>();
@@ -7840,6 +8040,27 @@ static final class DropdownPanel {
 
     double totalHeight() {
         return 22.0 * this.lastScale + this.expandAnim.value;
+    }
+
+    private double maxPanelScroll() {
+        return Math.max(0.0, this.contentH - this.maxBodyH);
+    }
+
+    /** Scrolls this panel's body when the cursor is over it. Returns true if the wheel was used. */
+    boolean tryScroll(double drawX, double drawY, double panelW, int mouseX, int mouseY, int wheel) {
+        if (wheel == 0 || !this.opened || this.expandAnim.value <= 1.0) {
+            return false;
+        }
+        double headerH = 22.0 * this.lastScale;
+        if (!DrawUtil.hovered(drawX, drawY + headerH, panelW, this.expandAnim.value, mouseX, mouseY)) {
+            return false;
+        }
+        double max = maxPanelScroll();
+        if (max <= 0.0) {
+            return false;
+        }
+        this.panelTargetScroll = clampDouble(this.panelTargetScroll + (wheel > 0 ? -1.0 : 1.0) * 18.0 * this.lastScale, 0.0, max);
+        return true;
     }
 
     private boolean isSettingShown(ravens4.module.setting.Setting s) {
@@ -7920,8 +8141,16 @@ static final class DropdownPanel {
             targetBodyH += 4.0 * scale;
         }
 
-        this.expandAnim.run(this.opened ? targetBodyH : 0.0);
+        this.contentH = targetBodyH;
+        this.expandAnim.run(this.opened ? Math.min(targetBodyH, this.maxBodyH) : 0.0);
         double bodyH = this.expandAnim.value;
+        if (!this.opened) {
+            this.panelTargetScroll = 0.0;
+        }
+        double maxScroll = maxPanelScroll();
+        this.panelTargetScroll = clampDouble(this.panelTargetScroll, 0.0, maxScroll);
+        this.panelScrollAnim.run(this.panelTargetScroll);
+        double scrollY = this.panelScrollAnim.value;
         double headerH = 22.0 * scale;
 
         boolean headerHov = DrawUtil.hovered(drawX, drawY, panelW, headerH, mouseX, mouseY);
@@ -7968,7 +8197,7 @@ static final class DropdownPanel {
 
         DrawUtil.enableScissor(drawX, drawY + headerH, panelW, bodyH);
 
-        double curY = drawY + headerH + 3.0 * scale;
+        double curY = drawY + headerH + 3.0 * scale - scrollY;
         RiseFont fMod = RiseFont.of((int) Math.round(13.0 * scale));
         RiseFont fDesc = RiseFont.of((int) Math.round(9.0 * scale));
         RiseFont fVal = RiseFont.of((int) Math.round(12.0 * scale));
@@ -8144,6 +8373,13 @@ static final class DropdownPanel {
         }
 
         DrawUtil.disableScissor();
+
+        if (maxScroll > 0.5 && bodyH > 8.0 * scale) {
+            double trackH = bodyH - 6.0 * scale;
+            double barH = Math.max(12.0 * scale, trackH * (this.maxBodyH / Math.max(this.maxBodyH, this.contentH)));
+            double barY = drawY + headerH + 3.0 * scale + (trackH - barH) * (scrollY / maxScroll);
+            DrawUtil.roundedRect(drawX + panelW - 4.0 * scale, barY, 2.0 * scale, barH, 1.0 * scale, Palette.withAlpha(accent, 160));
+        }
     }
 
     void renderBloom(double drawX, double drawY, double scale) {
@@ -8156,11 +8392,13 @@ static final class DropdownPanel {
         );
         if (!this.opened || this.expandAnim.value <= 1.0) return;
 
-        double curY = drawY + 22.0 * scale + 3.0 * scale;
+        double bodyTop = drawY + 22.0 * scale;
+        double bodyBottom = bodyTop + this.expandAnim.value;
+        double curY = bodyTop + 3.0 * scale - this.panelScrollAnim.value;
         RiseFont fMod = RiseFont.of((int) Math.round(13.0 * scale));
         for (int i = 0; i < this.cards.size(); i++) {
             ModCard mc = this.cards.get(i);
-            if (mc.mod.isEnabled()) {
+            if (mc.mod.isEnabled() && curY >= bodyTop && curY + 32.0 * scale <= bodyBottom) {
                 DrawUtil.roundedRect(drawX + 6.0 * scale, curY, 2.0 * scale, 32.0 * scale, 1.0 * scale, Palette.withAlpha(first, 150));
                 fMod.draw(mc.mod.getName(), drawX + 12.0 * scale, curY + 4.0 * scale, Palette.rgbWithAlpha(first, 120));
             }
@@ -8216,7 +8454,7 @@ static final class DropdownPanel {
 
         if (!this.opened || this.expandAnim.value <= 1.0) return;
 
-        double curY = drawY + headerH + 3.0 * scale;
+        double curY = drawY + headerH + 3.0 * scale - this.panelScrollAnim.value;
         for (int i = 0; i < this.cards.size(); i++) {
             ModCard mc = this.cards.get(i);
             if (DrawUtil.hovered(drawX + 6.0 * scale, curY, this.lastWidth - 12.0 * scale, rowH, mouseX, mouseY)) {
@@ -8481,9 +8719,19 @@ static final class DropdownGui {
 
         boolean anyOpened = false;
         for (DropdownPanel p : this.panels.values()) {
+            p.maxBodyH = Math.max(100.0 * this.scale, screenH - p.y - 22.0 * this.scale - 16.0);
             if (p.opened) {
                 anyOpened = true;
-                break;
+            }
+        }
+
+        if (wheel != 0) {
+            for (int i = 0; i < this.panelOrder.size(); i++) {
+                DropdownPanel p = this.panels.get(this.panelOrder.get(i));
+                if (p != null && p.tryScroll(p.x, p.y - this.scrollOffset, panelWidth(), mouseX, mouseY, wheel)) {
+                    wheel = 0;
+                    break;
+                }
             }
         }
 
