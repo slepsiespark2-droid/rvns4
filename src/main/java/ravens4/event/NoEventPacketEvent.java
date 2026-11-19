@@ -1,7 +1,7 @@
 package ravens4.event;
 
 import net.minecraft.network.Packet;
-import net.minecraftforge.fml.common.eventhandler.Event;
+import ravens4.bus.Event;
 
 public class NoEventPacketEvent extends Event {
     private Packet<?> packet;

@@ -2,8 +2,8 @@ package ravens4.mixin.impl.world;
 
 import ravens4.module.ModuleManager;
 import net.minecraft.world.storage.WorldInfo;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import ravens4.bus.Side;
+import ravens4.bus.SideOnly;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

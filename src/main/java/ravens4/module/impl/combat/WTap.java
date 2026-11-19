@@ -8,7 +8,7 @@ import ravens4.module.setting.impl.SliderSetting;
 import ravens4.utility.Utils;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.SubscribeEvent;
 
 public class WTap extends Module {
     private SliderSetting delayBetweenReset;

@@ -1,7 +1,7 @@
 package ravens4.event;
 
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraftforge.fml.common.eventhandler.Event;
+import ravens4.bus.Event;
 
 public class GuiUpdateEvent extends Event {
     public GuiScreen guiScreen;

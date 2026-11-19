@@ -24,9 +24,9 @@ import net.minecraft.util.MathHelper;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.Vec3;
-import net.minecraftforge.client.event.MouseEvent;
-import net.minecraftforge.fml.common.eventhandler.EventPriority;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.MouseEvent;
+import ravens4.bus.EventPriority;
+import ravens4.bus.SubscribeEvent;
 import org.lwjgl.input.Mouse;
 
 import java.util.ArrayList;

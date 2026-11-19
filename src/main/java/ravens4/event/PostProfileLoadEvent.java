@@ -1,6 +1,6 @@
 package ravens4.event;
 
-import net.minecraftforge.fml.common.eventhandler.Event;
+import ravens4.bus.Event;
 
 public class PostProfileLoadEvent extends Event {
     public String profileName;

@@ -2,8 +2,8 @@ package ravens4.mixin.impl.client;
 
 import ravens4.module.impl.render.PlayerESP;
 import net.minecraft.item.ItemStack;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import ravens4.bus.Side;
+import ravens4.bus.SideOnly;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

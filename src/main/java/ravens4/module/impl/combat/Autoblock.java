@@ -20,10 +20,10 @@ import ravens4.utility.Utils;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.network.play.client.C02PacketUseEntity;
-import net.minecraftforge.client.event.MouseEvent;
-import net.minecraftforge.fml.common.eventhandler.EventPriority;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
+import ravens4.bus.MouseEvent;
+import ravens4.bus.EventPriority;
+import ravens4.bus.SubscribeEvent;
+import ravens4.bus.TickEvent;
 import org.lwjgl.input.Mouse;
 
 public class Autoblock extends Module {

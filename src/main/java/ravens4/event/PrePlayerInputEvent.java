@@ -1,7 +1,7 @@
 package ravens4.event;
 
 import ravens4.script.model.MovementInput;
-import net.minecraftforge.fml.common.eventhandler.Event;
+import ravens4.bus.Event;
 
 public class PrePlayerInputEvent extends Event {
     private float forward, strafe;

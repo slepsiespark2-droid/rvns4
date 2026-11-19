@@ -78,12 +78,14 @@ public class ModuleManager {
     public static Relationships relationships;
     public static Displace displace;
     public static Clutch clutch;
+    public static ravens4.module.impl.client.Interface interfaceModule;
 
     public void register() {
         this.addModule(chatCommands = new ChatCommands());
         this.addModule(commandLine = new CommandLine());
         this.addModule(new Gui());
         this.addModule(new Settings());
+        this.addModule(interfaceModule = new ravens4.module.impl.client.Interface());
         this.addModule(relationships = new Relationships());
         if (ravens4.Raven.playerRelationsManager == null || ravens4.Raven.playerRelationsManager.isActive()) {
             relationships.enable();

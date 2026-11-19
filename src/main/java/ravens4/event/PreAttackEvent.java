@@ -1,8 +1,8 @@
 package ravens4.event;
 
 import net.minecraft.util.MovingObjectPosition;
-import net.minecraftforge.fml.common.eventhandler.Cancelable;
-import net.minecraftforge.fml.common.eventhandler.Event;
+import ravens4.bus.Cancelable;
+import ravens4.bus.Event;
 
 /**
  * Fired at the start of Minecraft.clickMouse() before swingItem() or attackEntity().

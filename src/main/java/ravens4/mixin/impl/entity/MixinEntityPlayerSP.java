@@ -105,7 +105,7 @@ public abstract class MixinEntityPlayerSP extends AbstractClientPlayer {
             RotationUtils.prevRenderPitch = RotationUtils.renderPitch;
             RotationUtils.prevRenderYaw = RotationUtils.renderYaw;
 
-            net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new PreUpdateEvent());
+            ravens4.bus.MinecraftForge.EVENT_BUS.post(new PreUpdateEvent());
         }
     }
 
@@ -116,7 +116,7 @@ public abstract class MixinEntityPlayerSP extends AbstractClientPlayer {
         }
 
         if (this.worldObj.isBlockLoaded(new BlockPos(this.posX, 0.0, this.posZ))) {
-            net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new PostUpdateEvent());
+            ravens4.bus.MinecraftForge.EVENT_BUS.post(new PostUpdateEvent());
         }
 
         int extraUpdates = Timer.consumeExtraLocalUpdatesForBaseTick();
@@ -153,7 +153,7 @@ public abstract class MixinEntityPlayerSP extends AbstractClientPlayer {
                 this.isSneaking()
         );
 
-        net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(preMotionEvent);
+        ravens4.bus.MinecraftForge.EVENT_BUS.post(preMotionEvent);
 
         RotationUtils.serverRotations = new float[] { preMotionEvent.getYaw(), preMotionEvent.getPitch() };
 
@@ -230,7 +230,7 @@ public abstract class MixinEntityPlayerSP extends AbstractClientPlayer {
                 this.lastReportedPitch = preMotionEvent.getPitch();
             }
         }
-        net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(new PostMotionEvent());
+        ravens4.bus.MinecraftForge.EVENT_BUS.post(new PostMotionEvent());
     }
 
     @Overwrite

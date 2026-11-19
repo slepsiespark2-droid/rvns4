@@ -1,8 +1,8 @@
 package ravens4.event;
 
 import net.minecraft.network.play.server.S27PacketExplosion;
-import net.minecraftforge.fml.common.eventhandler.Cancelable;
-import net.minecraftforge.fml.common.eventhandler.Event;
+import ravens4.bus.Cancelable;
+import ravens4.bus.Event;
 
 @Cancelable
 public class PreExplosionPacketEvent extends Event {

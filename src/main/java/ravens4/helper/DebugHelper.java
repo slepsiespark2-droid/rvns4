@@ -4,8 +4,8 @@ import ravens4.Raven;
 import ravens4.utility.IMinecraftInstance;
 import ravens4.utility.RenderUtils;
 import ravens4.utility.Utils;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
+import ravens4.bus.SubscribeEvent;
+import ravens4.bus.TickEvent;
 
 public class DebugHelper implements IMinecraftInstance {
     public static boolean MIXIN; // for debugging mixin related

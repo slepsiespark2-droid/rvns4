@@ -3,7 +3,7 @@ package ravens4.module.setting.impl;
 import com.google.gson.JsonObject;
 import ravens4.event.PostSetSliderEvent;
 import ravens4.module.setting.Setting;
-import net.minecraftforge.common.MinecraftForge;
+import ravens4.bus.MinecraftForge;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

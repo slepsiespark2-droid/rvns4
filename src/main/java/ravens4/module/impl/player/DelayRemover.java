@@ -5,8 +5,8 @@ import ravens4.mixin.impl.accessor.IAccessorMinecraft;
 import ravens4.module.Module;
 import ravens4.module.setting.impl.ButtonSetting;
 import ravens4.utility.Utils;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
+import ravens4.bus.SubscribeEvent;
+import ravens4.bus.TickEvent;
 
 public class DelayRemover extends Module {
     public ButtonSetting oldReg, removeJumpTicks;

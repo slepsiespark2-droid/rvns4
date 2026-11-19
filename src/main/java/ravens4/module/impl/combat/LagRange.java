@@ -24,8 +24,8 @@ import net.minecraft.item.ItemPotion;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.Vec3;
-import net.minecraftforge.client.event.RenderWorldLastEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.RenderWorldLastEvent;
+import ravens4.bus.SubscribeEvent;
 import org.lwjgl.opengl.GL11;
 
 public class LagRange extends Module {

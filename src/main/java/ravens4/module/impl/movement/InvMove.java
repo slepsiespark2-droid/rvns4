@@ -18,7 +18,7 @@ import net.minecraft.network.Packet;
 import net.minecraft.network.play.client.C0DPacketCloseWindow;
 import net.minecraft.network.play.client.C0EPacketClickWindow;
 import net.minecraft.network.play.client.C16PacketClientStatus;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.SubscribeEvent;
 import org.lwjgl.input.Keyboard;
 
 import java.util.concurrent.ConcurrentLinkedQueue;

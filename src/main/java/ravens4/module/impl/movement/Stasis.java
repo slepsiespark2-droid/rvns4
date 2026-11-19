@@ -6,7 +6,7 @@ import ravens4.event.SendPacketEvent;
 import ravens4.module.Module;
 import ravens4.utility.Utils;
 import net.minecraft.network.play.client.C03PacketPlayer;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.SubscribeEvent;
 
 public class Stasis extends Module {
     public Stasis() {

@@ -4,9 +4,9 @@ import ravens4.event.ReceivePacketEvent;
 import ravens4.module.ModuleManager;
 import ravens4.utility.Utils;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.event.entity.EntityJoinWorldEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
+import ravens4.bus.EntityJoinWorldEvent;
+import ravens4.bus.SubscribeEvent;
+import ravens4.bus.TickEvent;
 
 public final class BlockHighlightSharedHandler {
 

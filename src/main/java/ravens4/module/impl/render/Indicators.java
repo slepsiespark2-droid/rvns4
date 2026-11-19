@@ -19,8 +19,8 @@ import net.minecraft.entity.projectile.*;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.Vec3;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
+import ravens4.bus.SubscribeEvent;
+import ravens4.bus.TickEvent;
 import org.lwjgl.opengl.GL11;
 
 import java.awt.*;

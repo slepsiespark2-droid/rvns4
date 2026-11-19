@@ -18,8 +18,8 @@ import net.minecraft.network.play.server.*;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.BlockPos;
-import net.minecraftforge.fml.common.eventhandler.EventPriority;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.EventPriority;
+import ravens4.bus.SubscribeEvent;
 import org.lwjgl.input.Keyboard;
 
 public class LongJump extends Module {

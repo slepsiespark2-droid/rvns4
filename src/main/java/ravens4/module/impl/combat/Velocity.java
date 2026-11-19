@@ -14,8 +14,8 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.potion.Potion;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.MovingObjectPosition;
-import net.minecraftforge.event.entity.living.LivingEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.LivingEvent;
+import ravens4.bus.SubscribeEvent;
 import org.lwjgl.input.Keyboard;
 
 public class Velocity extends Module {

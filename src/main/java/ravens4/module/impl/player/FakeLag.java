@@ -11,8 +11,8 @@ import ravens4.module.Module;
 import ravens4.module.ModuleManager;
 import ravens4.module.setting.impl.SliderSetting;
 import ravens4.utility.Utils;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.TickEvent;
+import ravens4.bus.SubscribeEvent;
 import org.jetbrains.annotations.Nullable;
 
 public class FakeLag extends Module {

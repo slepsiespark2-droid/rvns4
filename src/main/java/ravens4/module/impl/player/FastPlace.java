@@ -16,7 +16,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.client.C08PacketPlayerBlockPlacement;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.MovingObjectPosition;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.SubscribeEvent;
 
 public class FastPlace extends Module {
     public SliderSetting tickDelay;

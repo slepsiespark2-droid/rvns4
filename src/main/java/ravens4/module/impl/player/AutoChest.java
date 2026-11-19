@@ -9,7 +9,7 @@ import net.minecraft.inventory.ContainerChest;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.IChatComponent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.SubscribeEvent;
 import ravens4.event.PreUpdateEvent;
 
 import java.util.HashSet;

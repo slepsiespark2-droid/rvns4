@@ -24,7 +24,7 @@ import ravens4.module.setting.impl.TextSetting;
 import ravens4.script.Manager;
 import ravens4.utility.IMinecraftInstance;
 import ravens4.utility.Utils;
-import net.minecraftforge.common.MinecraftForge;
+import ravens4.bus.MinecraftForge;
 
 import java.io.File;
 import java.io.FileReader;

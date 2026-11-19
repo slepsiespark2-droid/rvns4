@@ -9,8 +9,8 @@ import ravens4.utility.Utils;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
-import net.minecraftforge.client.event.GuiOpenEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.GuiOpenEvent;
+import ravens4.bus.SubscribeEvent;
 import org.lwjgl.input.Keyboard;
 
 public class SafeWalk extends Module {

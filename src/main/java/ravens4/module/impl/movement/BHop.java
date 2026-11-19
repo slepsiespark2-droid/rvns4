@@ -11,7 +11,7 @@ import ravens4.module.setting.impl.KeySetting;
 import ravens4.module.setting.impl.SliderSetting;
 import ravens4.utility.ModuleUtils;
 import ravens4.utility.Utils;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.SubscribeEvent;
 
 public class BHop extends Module {
     public SliderSetting mode;

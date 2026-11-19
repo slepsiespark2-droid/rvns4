@@ -17,8 +17,8 @@ import net.minecraft.entity.projectile.EntityFireball;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.Vec3;
-import net.minecraftforge.event.entity.EntityJoinWorldEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.EntityJoinWorldEvent;
+import ravens4.bus.SubscribeEvent;
 
 import java.util.ArrayList;
 import java.util.Comparator;

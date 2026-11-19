@@ -3,7 +3,7 @@ package ravens4.event;
 import net.minecraft.block.Block;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.BlockPos;
-import net.minecraftforge.fml.common.eventhandler.Event;
+import ravens4.bus.Event;
 
 public class CollisionEvent extends Event {
     public final BlockPos blockPos;

@@ -2,8 +2,8 @@ package ravens4.keystroke;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent.RenderTickEvent;
+import ravens4.bus.SubscribeEvent;
+import ravens4.bus.TickEvent.RenderTickEvent;
 
 import java.awt.*;
 import java.io.IOException;

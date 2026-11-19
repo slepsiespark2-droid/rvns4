@@ -30,8 +30,8 @@ import net.minecraft.util.BlockPos;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.Vec3;
-import net.minecraftforge.client.event.RenderWorldLastEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.RenderWorldLastEvent;
+import ravens4.bus.SubscribeEvent;
 import org.lwjgl.input.Keyboard;
 
 import java.io.InputStream;
@@ -451,8 +451,8 @@ public class BedDefender extends Module {
     }
 
     @SubscribeEvent
-    public void onRenderTick(net.minecraftforge.fml.common.gameevent.TickEvent.RenderTickEvent e) {
-        if (e.phase != net.minecraftforge.fml.common.gameevent.TickEvent.Phase.END) return;
+    public void onRenderTick(ravens4.bus.TickEvent.RenderTickEvent e) {
+        if (e.phase != ravens4.bus.TickEvent.Phase.END) return;
         if (!this.isEnabled()) return;
         applySmoothedRotation();
     }

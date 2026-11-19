@@ -1,6 +1,6 @@
 package ravens4.module.impl.client;
 
-import net.minecraftforge.common.MinecraftForge;
+import ravens4.bus.MinecraftForge;
 import ravens4.Raven;
 import ravens4.clickgui.ClickGui2;
 import ravens4.clickgui.ClickGui2Host;

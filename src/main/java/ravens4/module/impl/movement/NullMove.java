@@ -4,8 +4,8 @@ import ravens4.event.PrePlayerInputEvent;
 import ravens4.module.Module;
 import ravens4.module.setting.impl.DescriptionSetting;
 import ravens4.utility.Utils;
-import net.minecraftforge.fml.common.eventhandler.EventPriority;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.EventPriority;
+import ravens4.bus.SubscribeEvent;
 
 public class NullMove extends Module {
 

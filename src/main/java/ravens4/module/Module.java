@@ -8,7 +8,7 @@ import ravens4.module.setting.impl.SliderSetting;
 import ravens4.script.Script;
 import ravens4.utility.Utils;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.common.MinecraftForge;
+import ravens4.bus.MinecraftForge;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 

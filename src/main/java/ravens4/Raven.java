@@ -29,14 +29,14 @@ import ravens4.utility.profile.ProfileManager;
 import ravens4.module.setting.impl.SliderSetting;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.client.ClientCommandHandler;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.entity.EntityJoinWorldEvent;
+import ravens4.bus.MinecraftForge;
+import ravens4.bus.EntityJoinWorldEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.EventHandler;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent.Phase;
+import ravens4.bus.SubscribeEvent;
+import ravens4.bus.TickEvent.ClientTickEvent;
+import ravens4.bus.TickEvent.Phase;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -79,6 +79,8 @@ public class Raven {
         ClientCommandHandler.instance.registerCommand(new KeyStrokeCommand());
         ClientCommandHandler.instance.registerCommand(new ravens4.command.OracleKeyCommand());
 
+        // Forge's own events are passed on to the client's own bus by this bridge, everything else listens there
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new ravens4.bus.ForgeBridge());
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(new DebugHelper());
         MinecraftForge.EVENT_BUS.register(new MouseHelper());
@@ -99,6 +101,7 @@ public class Raven {
         clickGui = new ClickGui();
         profileManager = new ProfileManager();
         ScriptDefaults.reloadModules();
+        ModuleManager.interfaceModule.init();
         scriptManager.loadScripts();
         profileManager.loadProfiles();
         ReflectionUtils.setKeyBindings();

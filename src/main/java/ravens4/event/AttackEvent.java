@@ -2,8 +2,8 @@ package ravens4.event;
 
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraftforge.fml.common.eventhandler.Cancelable;
-import net.minecraftforge.fml.common.eventhandler.Event;
+import ravens4.bus.Cancelable;
+import ravens4.bus.Event;
 
 @Cancelable
 public class AttackEvent extends Event {

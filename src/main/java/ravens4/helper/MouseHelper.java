@@ -8,8 +8,8 @@ import ravens4.utility.Utils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
-import net.minecraftforge.client.event.MouseEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.MouseEvent;
+import ravens4.bus.SubscribeEvent;
 import org.lwjgl.input.Mouse;
 
 import java.util.ArrayList;

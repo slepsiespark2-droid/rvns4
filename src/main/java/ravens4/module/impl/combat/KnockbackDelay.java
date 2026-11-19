@@ -18,8 +18,8 @@ import ravens4.utility.Utils;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.server.S08PacketPlayerPosLook;
 import net.minecraft.network.play.server.S12PacketEntityVelocity;
-import net.minecraftforge.fml.common.eventhandler.EventPriority;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.EventPriority;
+import ravens4.bus.SubscribeEvent;
 import org.lwjgl.input.Mouse;
 
 public class KnockbackDelay extends Module {

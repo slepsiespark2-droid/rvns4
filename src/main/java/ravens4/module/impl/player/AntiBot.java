@@ -10,8 +10,8 @@ import ravens4.utility.Utils;
 import net.minecraft.client.network.NetworkPlayerInfo;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraftforge.event.entity.EntityJoinWorldEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.EntityJoinWorldEvent;
+import ravens4.bus.SubscribeEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;

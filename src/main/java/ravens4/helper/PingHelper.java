@@ -2,8 +2,8 @@ package ravens4.helper;
 
 import ravens4.utility.CommandHandler;
 import ravens4.utility.Utils;
-import net.minecraftforge.client.event.ClientChatReceivedEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.ClientChatReceivedEvent;
+import ravens4.bus.SubscribeEvent;
 
 public class PingHelper {
     private static boolean sendChat = false;

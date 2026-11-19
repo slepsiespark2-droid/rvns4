@@ -10,7 +10,7 @@ import net.minecraft.event.HoverEvent;
 import net.minecraft.network.Packet;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatStyle;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import ravens4.bus.SubscribeEvent;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;

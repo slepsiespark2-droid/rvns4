@@ -7,7 +7,7 @@ import ravens4.module.setting.impl.TextSetting;
 import ravens4.utility.NetworkUtils;
 import ravens4.utility.Utils;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.common.MinecraftForge;
+import ravens4.bus.MinecraftForge;
 
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
