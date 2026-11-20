@@ -40,6 +40,7 @@ static RiseInterfaceModule interfaceModule;
 static RiseTargetInfoModule targetInfoModule;
 static RiseFpsCounterModule fpsCounterModule;
 static RiseBpsCounterModule bpsCounterModule;
+static RiseNotificationsModule notificationsModule;
 static ModernGui modernGui;
 
 static RiseTheme activeTheme = RiseTheme.BLEND;
@@ -436,6 +437,10 @@ static void ensureModulesCreated() {
         bpsCounterModule = new RiseBpsCounterModule();
         bpsCounterModule.loadConfig();
     }
+    if (notificationsModule == null) {
+        notificationsModule = new RiseNotificationsModule();
+        notificationsModule.loadConfig();
+    }
     ensureGuisCreated();
 }
 
@@ -472,6 +477,7 @@ static void registerRenderModules() {
     addRenderModIfAbsent(mm, list, targetInfoModule);
     addRenderModIfAbsent(mm, list, fpsCounterModule);
     addRenderModIfAbsent(mm, list, bpsCounterModule);
+    addRenderModIfAbsent(mm, list, notificationsModule);
     Collections.sort(list, new Comparator<ravens4.module.Module>() {
         public int compare(ravens4.module.Module a, ravens4.module.Module b) {
             return a.getName().compareTo(b.getName());
@@ -493,6 +499,7 @@ static void unregisterRenderModules() {
         removeRenderMod(mm, targetInfoModule);
         removeRenderMod(mm, fpsCounterModule);
         removeRenderMod(mm, bpsCounterModule);
+        removeRenderMod(mm, notificationsModule);
     }
     reloadRenderCategoryInRavenGui();
     ravens4.script.ScriptDefaults.reloadModules();
@@ -578,7 +585,7 @@ static void checkModuleToggleNotifications() {
         moduleStatesInitialized = true;
         return;
     }
-    boolean notify = interfaceModule != null && interfaceModule.isEnabled() && interfaceModule.toggleNotifications.isToggled();
+    boolean notify = notificationsModule != null && notificationsModule.isEnabled();
     for (ravens4.module.Module m : all) {
         if (m == clickGuiModule) {
             continue;
@@ -866,6 +873,9 @@ static void savePersistedState() {
         }
         if (bpsCounterModule != null) {
             bpsCounterModule.saveConfig();
+        }
+        if (notificationsModule != null) {
+            notificationsModule.saveConfig();
         }
         config.set("rise_clickgui_bind", String.valueOf(currentGuiBind));
         if (modernGui != null && modernGui.position.x >= 0 && modernGui.position.y >= 0) {
@@ -2615,7 +2625,6 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
     final ravens4.module.setting.impl.ButtonSetting lowercase;
     final ravens4.module.setting.impl.ButtonSetting removeSpaces;
     final ravens4.module.setting.impl.ButtonSetting shaders;
-    final ravens4.module.setting.impl.ButtonSetting toggleNotifications;
     final ravens4.module.setting.impl.SliderSetting blurRadius;
     final ravens4.module.setting.impl.SliderSetting blurCompression;
     final ravens4.module.setting.impl.SliderSetting bloomRadius;
@@ -2645,7 +2654,6 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
         this.registerSetting(this.lowercase = new ravens4.module.setting.impl.ButtonSetting("Lowercase", false));
         this.registerSetting(this.removeSpaces = new ravens4.module.setting.impl.ButtonSetting("Remove Spaces", false));
         this.registerSetting(this.shaders = new ravens4.module.setting.impl.ButtonSetting("Shaders", false));
-        this.registerSetting(this.toggleNotifications = new ravens4.module.setting.impl.ButtonSetting("Toggle Notifications", false));
         this.registerSetting(this.blurRadius = new ravens4.module.setting.impl.SliderSetting("Blur Radius", 12.0, 1.0, 30.0, 1.0));
         this.registerSetting(this.blurCompression = new ravens4.module.setting.impl.SliderSetting("Blur Compression", 3.0, 1.0, 10.0, 0.1));
         this.registerSetting(this.bloomRadius = new ravens4.module.setting.impl.SliderSetting("Bloom Radius", 14.0, 1.0, 30.0, 1.0));
@@ -2775,6 +2783,9 @@ static final class HudDragManager {
         }
         if (bpsCounterModule != null && bpsCounterModule.isEnabled()) {
             list.add(bpsCounterModule.dragBox);
+        }
+        if (notificationsModule != null && notificationsModule.isEnabled()) {
+            list.add(notificationsModule.dragBox);
         }
         if (targetInfoModule != null && targetInfoModule.isEnabled() && !targetInfoModule.followPlayer.isToggled()) {
             list.add(targetInfoModule.dragBox);
@@ -2952,6 +2963,73 @@ static final class HudDragManager {
             }
         });
     }
+}
+
+static final class RiseNotificationsModule extends ravens4.module.Module {
+    final ravens4.module.setting.impl.ButtonSetting editPosition;
+    final ravens4.module.setting.impl.SliderSetting size;
+    final ravens4.module.setting.impl.ButtonSetting bloom;
+    final ravens4.module.setting.impl.ButtonSetting blur;
+    final HudDragBox dragBox = new HudDragBox("rise_pos_notifications", 5.0, 126.0, 140.0, 30.0);
+
+    RiseNotificationsModule() {
+        super("Notifications", ravens4.module.Module.category.render, 0);
+        this.alwaysOn = true;
+        this.registerSetting(this.editPosition = new ravens4.module.setting.impl.ButtonSetting("Edit position", new Runnable() {
+            public void run() {
+                openNotificationPositionEditor();
+            }
+        }));
+        this.registerSetting(this.size = new ravens4.module.setting.impl.SliderSetting("Size", 50.0, 1.0, 100.0, 1.0));
+        this.registerSetting(this.bloom = new ravens4.module.setting.impl.ButtonSetting("Bloom", true));
+        this.registerSetting(this.blur = new ravens4.module.setting.impl.ButtonSetting("Blur", true));
+    }
+
+    /** Size 50 is the normal notification, 1 is 40% of it and 100 is 160%. */
+    double getScale() {
+        double v = Math.max(1.0, Math.min(100.0, this.size.getInput()));
+        return 0.4 + 1.2 * (v - 1.0) / 99.0;
+    }
+
+    void loadConfig() {
+        this.dragBox.loadFromConfig();
+        this.size.setValue(readConfigDouble("rise_notif_size", 50.0));
+        this.bloom.setEnabled(readConfigBool("rise_notif_bloom", true));
+        this.blur.setEnabled(readConfigBool("rise_notif_blur", true));
+        if (readConfigBool("rise_notif_enabled", false)) {
+            this.setEnabled(true);
+        }
+    }
+
+    void saveConfig() {
+        this.dragBox.saveToConfig();
+        config.set("rise_notif_size", String.valueOf(this.size.getInput()));
+        config.set("rise_notif_bloom", String.valueOf(this.bloom.isToggled()));
+        config.set("rise_notif_blur", String.valueOf(this.blur.isToggled()));
+        config.set("rise_notif_enabled", String.valueOf(this.isEnabled()));
+    }
+
+    @Override
+    public void onEnable() {
+        savePersistedState();
+    }
+
+    @Override
+    public void onDisable() {
+        savePersistedState();
+    }
+}
+
+/** Closes the Rise GUI and opens the chat, where HUD boxes (and the notification preview) can be dragged. */
+static void openNotificationPositionEditor() {
+    if (notificationsModule != null && !notificationsModule.isEnabled()) {
+        notificationsModule.setEnabled(true);
+        savePersistedState();
+    }
+    if (guiScreenOpen) {
+        closeRiseClickGui();
+    }
+    net.minecraft.client.Minecraft.getMinecraft().displayGuiScreen(new net.minecraft.client.gui.GuiChat());
 }
 
 static final class RiseFpsCounterModule extends ravens4.module.Module {
@@ -4233,12 +4311,23 @@ static final class ToggleToastManager {
         }
     }
 
+    private static final ToastItem PREVIEW = new ToastItem("Notifications", "Drag me anywhere in the chat", 1000);
+
     static void onRender2D() {
-        final ToastItem item = current;
+        if (notificationsModule == null || !notificationsModule.isEnabled()) {
+            return;
+        }
+        final boolean preview = current == null && isChatScreenOpen();
+        final ToastItem item = preview ? PREVIEW : current;
         if (item == null) {
             return;
         }
-        boolean expired = timer.finished(item.durationMs);
+        final double posX = notificationsModule.dragBox.x;
+        final double posY = notificationsModule.dragBox.y;
+        final double userScale = notificationsModule.getScale();
+        final boolean doBlur = notificationsModule.blur.isToggled();
+        final boolean doBloom = notificationsModule.bloom.isToggled();
+        boolean expired = !preview && timer.finished(item.durationMs);
         anim.setDuration(500L);
         anim.setEasing(Easing.EASE_OUT_EXPO);
         anim.run(expired ? 1.1 : 1.0);
@@ -4248,11 +4337,15 @@ static final class ToggleToastManager {
             return;
         }
 
-        final double w = boxW;
-        if (Math.abs(scale - 1.0) <= 0.045) {
+        final double w = preview ? Math.max(140.0, (double) RiseFont.F15.width(PREVIEW.body) + pad * 3.0 + iconSize + 2.0) : boxW;
+        notificationsModule.dragBox.updateSize(w * userScale, boxH * userScale);
+        if (doBlur && Math.abs(scale - 1.0) <= 0.045) {
             ShaderPipeline.addBlur(new Runnable() {
                 public void run() {
                     gl.push();
+                    gl.translate(posX, posY, 0.0);
+                    gl.scale((float) userScale, (float) userScale, 1.0f);
+                    gl.translate(-posX, -posY, 0.0);
                     gl.translate((posX + w / 2.0) * (1.0 - scale), (posY + boxH / 2.0) * (1.0 - scale), 0.0);
                     gl.scale((float) scale, (float) scale, 1.0f);
                     DrawUtil.roundedRect(posX, posY, w, boxH, 10.0, Palette.withAlpha(Color.BLACK, (int) (255.0 * alphaFactor)));
@@ -4261,9 +4354,12 @@ static final class ToggleToastManager {
             });
         }
 
-        ShaderPipeline.addBloom(new Runnable() {
+        if (doBloom) ShaderPipeline.addBloom(new Runnable() {
             public void run() {
                 gl.push();
+                gl.translate(posX, posY, 0.0);
+                gl.scale((float) userScale, (float) userScale, 1.0f);
+                gl.translate(-posX, -posY, 0.0);
                 gl.translate((posX + w / 2.0) * (1.0 - scale), (posY + boxH / 2.0) * (1.0 - scale), 0.0);
                 gl.scale((float) scale, (float) scale, 1.0f);
                 Color ds = activeTheme.dropShadowColor();
@@ -4275,6 +4371,9 @@ static final class ToggleToastManager {
         ShaderPipeline.addNormal(1, new Runnable() {
             public void run() {
                 gl.push();
+                gl.translate(posX, posY, 0.0);
+                gl.scale((float) userScale, (float) userScale, 1.0f);
+                gl.translate(-posX, -posY, 0.0);
                 gl.translate((posX + w / 2.0) * (1.0 - scale), (posY + boxH / 2.0) * (1.0 - scale), 0.0);
                 gl.scale((float) scale, (float) scale, 1.0f);
                 Color bg = RiseTheme.backgroundShade;
