@@ -130,6 +130,7 @@ public class Interface extends Module {
 
         @SubscribeEvent(priority = EventPriority.HIGHEST)
         public void onMouse(MouseEvent e) {
+            ravens4.module.impl.client.rise.Interface.feedWheel(e.dwheel);
             if (!script.onMouse(e.button, e.buttonstate, 0, 0)) {
                 e.setCanceled(true);
             }

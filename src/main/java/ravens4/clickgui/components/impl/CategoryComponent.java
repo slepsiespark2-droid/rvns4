@@ -355,14 +355,9 @@ public class CategoryComponent {
 
         GL11.glPushMatrix();
 
-        boolean oldRainbow = (opened || hovering) && Gui.isOldRainbowOutline();
-        int outlineColor1 = oldRainbow ? RenderUtils.setAlpha(Utils.getChroma(2, 0), 0.5) : REGULAR_OUTLINE;
-        int outlineColor2 = oldRainbow ? RenderUtils.setAlpha(Utils.getChroma(2, 700), 0.5) : REGULAR_OUTLINE2;
-        if (Gui.hasOutlineTheme()) {
-            int[] themed = Gui.getOutlineThemeColors();
-            outlineColor1 = themed[0];
-            outlineColor2 = themed[1];
-        }
+        int[] themed = Gui.getOutlineThemeColors();
+        int outlineColor1 = themed[0];
+        int outlineColor2 = themed[1];
         RenderUtils.drawRoundedGradientOutlinedRectangle(this.x - 2, this.y, this.x + this.width + 2, extra, 10, TRANSLUCENT_BACKGROUND,
                 outlineColor1, outlineColor2);
         renderItemForCategory(this.category, (int) (this.x + 1), (int) (this.y + 4), opened || hovering);

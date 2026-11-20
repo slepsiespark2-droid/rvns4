@@ -6,7 +6,7 @@ import ravens4.clickgui.ClickGui2;
 import ravens4.clickgui.ClickGui2Host;
 import ravens4.clickgui.PanelClickGui;
 import ravens4.module.Module;
-import ravens4.utility.ThemePalette;
+import ravens4.utility.ClientTheme;
 import ravens4.module.setting.Setting;
 import ravens4.module.setting.impl.ButtonSetting;
 import ravens4.module.setting.impl.SliderSetting;
@@ -19,12 +19,9 @@ import java.util.List;
 
 public class Gui extends Module {
     private static final String[] GUI_FONT_OPTIONS = FontManager.getHudFontOptions();
-    private static final String[] OUTLINE_THEME_OPTIONS = buildOutlineThemeOptions();
     private static final String[] MODES = new String[]{"ClickGui", "ClickGui2", "Panel"};
     private static final int MODE_CLICKGUI2 = 1;
     private static final int MODE_PANEL = 2;
-    /** Last option: the former "Rainbow outlines" button (chroma outline on open / hovered categories). */
-    private static final int OLD_RAINBOW_INDEX = OUTLINE_THEME_OPTIONS.length - 1;
 
     public static SliderSetting guiScale;
     public static SliderSetting font;
@@ -33,7 +30,6 @@ public class Gui extends Module {
     public static ButtonSetting removePlayerModel;
     public static ButtonSetting darkBackground;
     public static ButtonSetting removeWatermark;
-    public static SliderSetting outlineTheme;
     public static SliderSetting mode;
 
     private final ClickGui2Host clickGui2Host;
@@ -54,7 +50,6 @@ public class Gui extends Module {
         this.registerSetting(font = new SliderSetting("Font", 0, GUI_FONT_OPTIONS));
         this.registerSetting(backgroundBlur = new SliderSetting("Background blur", "%", 0, 0, 100, 1));
         this.registerSetting(scrollSpeed = new SliderSetting("Scroll speed", 20, 2, 90, 1));
-        this.registerSetting(outlineTheme = new SliderSetting("Outline theme", OLD_RAINBOW_INDEX, OUTLINE_THEME_OPTIONS));
         this.registerSetting(darkBackground = new ButtonSetting("Dark background", true));
         this.registerSetting(removePlayerModel = new ButtonSetting("Remove player model", false));
         this.registerSetting(removeWatermark = new ButtonSetting("Remove watermark", false));
@@ -81,7 +76,6 @@ public class Gui extends Module {
         clickGuiSettings.add(font);
         clickGuiSettings.add(backgroundBlur);
         clickGuiSettings.add(scrollSpeed);
-        clickGuiSettings.add(outlineTheme);
         clickGuiSettings.add(darkBackground);
         clickGuiSettings.add(removePlayerModel);
         clickGuiSettings.add(removeWatermark);
@@ -101,8 +95,8 @@ public class Gui extends Module {
         boolean clickGui2 = isClickGui2();
         boolean panel = isPanel();
         for (Setting setting : clickGuiSettings) {
-            // the accent theme and the background blur are shared with the Panel mode, everything else only belongs to the normal ClickGui
-            boolean accentOnly = setting == outlineTheme || setting == backgroundBlur;
+            // the background blur is shared with the Panel mode, everything else only belongs to the normal ClickGui
+            boolean accentOnly = setting == backgroundBlur;
             setting.setVisible(accentOnly ? !clickGui2 : (!clickGui2 && !panel), this);
         }
         for (Setting setting : clickGui2Settings) {
@@ -165,40 +159,13 @@ public class Gui extends Module {
         return FontManager.getClickGuiSettingRenderer(getSelectedFontName());
     }
 
-    private static String[] buildOutlineThemeOptions() {
-        String[] themes = ThemePalette.getThemeOptions();
-        String[] options = new String[themes.length + 1];
-        System.arraycopy(themes, 0, options, 0, themes.length);
-        options[themes.length] = "Old Rainbow";
-        return options;
-    }
-
-    private static int getOutlineThemeIndex() {
-        if (outlineTheme == null) {
-            return 0;
-        }
-        return Math.max(0, Math.min(OUTLINE_THEME_OPTIONS.length - 1, (int) outlineTheme.getInput()));
-    }
-
-    /** True for "Old Rainbow": open or hovered categories get a chroma outline, the others the regular blue/purple one. */
-    public static boolean isOldRainbowOutline() {
-        return getOutlineThemeIndex() == OLD_RAINBOW_INDEX;
-    }
-
-    /** True when one of the animated themes (everything except Default and Old Rainbow) is selected. */
-    public static boolean hasOutlineTheme() {
-        int index = getOutlineThemeIndex();
-        return index > 0 && index != OLD_RAINBOW_INDEX;
-    }
-
     /**
-     * The two colours of the category outline gradient for the selected theme: the same theme colour at opposite
-     * points of its animation, so the outline blends from one end of the theme to the other and keeps flowing.
+     * The two colours of the category outline gradient: the colours of the theme selected in the Theme category,
+     * at opposite points of its animation, so the outline blends from one end of the theme to the other and keeps flowing.
      */
     public static int[] getOutlineThemeColors() {
-        int theme = getOutlineThemeIndex();
         long now = System.currentTimeMillis();
-        return new int[]{ThemePalette.getThemeColor(theme, now, 0.0f), ThemePalette.getThemeColor(theme, now, 0.5f)};
+        return new int[]{ClientTheme.getAnimatedColor(now, 0.0f) | 0xFF000000, ClientTheme.getAnimatedColor(now, 0.5f) | 0xFF000000};
     }
 
     public static float getClickGuiScale() {

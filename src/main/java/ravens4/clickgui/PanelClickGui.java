@@ -321,12 +321,7 @@ public class PanelClickGui extends GuiScreen {
 
     private static int accent() {
         try {
-            if (ravens4.module.impl.client.Gui.outlineTheme != null) {
-                int idx = (int) ravens4.module.impl.client.Gui.outlineTheme.getInput();
-                if (idx >= 0 && idx < ThemePalette.getThemeOptions().length) {
-                    return ThemePalette.getThemeColor(idx, System.currentTimeMillis(), 0.0F) | 0xFF000000;
-                }
-            }
+            return ravens4.utility.ClientTheme.getAnimatedColor(System.currentTimeMillis(), 0.0F) | 0xFF000000;
         } catch (Throwable ignored) {
         }
         return 0xFF9B5CFF;

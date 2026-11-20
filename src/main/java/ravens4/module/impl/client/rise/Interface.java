@@ -41,13 +41,11 @@ static RiseTargetInfoModule targetInfoModule;
 static RiseFpsCounterModule fpsCounterModule;
 static RiseBpsCounterModule bpsCounterModule;
 static ModernGui modernGui;
-static DropdownGui dropdownGui;
 
 static RiseTheme activeTheme = RiseTheme.BLEND;
 static RiseLang activeLang = RiseLang.EN_US;
 
 static boolean guiScreenOpen = false;
-static String activeGuiMode = "Modern";
 static boolean prevMouse0 = false;
 static boolean prevMouse1 = false;
 static boolean prevMouse2 = false;
@@ -232,24 +230,18 @@ public void onScreenRender(String screenName, int mouseX, int mouseY, float part
     lastGuiMouseX = mouseX;
     lastGuiMouseY = mouseY;
 
-    String selectedMode = clickGuiModule != null ? clickGuiModule.getModeName() : "Modern";
-    if (!selectedMode.equals(activeGuiMode)) {
-        activeGuiMode = selectedMode;
-        if ("Modern".equals(activeGuiMode)) {
-            ensureGuisCreated();
-            modernGui.initGui();
-        } else {
-            ensureGuisCreated();
-            dropdownGui.initGui();
-        }
-    }
-
     boolean m0 = keybinds.isMouseDown(0);
     boolean m1 = keybinds.isMouseDown(1);
     boolean m2 = keybinds.isMouseDown(2);
     boolean m3 = keybinds.isMouseDown(3);
     boolean m4 = keybinds.isMouseDown(4);
-    int wheel = keybinds.getScroll();
+    // The wheel comes from the mouse events (see feedWheel): the client's own MouseHelper drains Mouse.getDWheel()
+    // every frame, so reading it here would always give 0.
+    int drainedWheel = keybinds.getScroll();
+    int wheel = takePendingWheel();
+    if (wheel == 0) {
+        wheel = drainedWheel;
+    }
 
     ensureGuisCreated();
     int pressedExtraMouse = -1;
@@ -283,25 +275,14 @@ public void onScreenRender(String screenName, int mouseX, int mouseY, float part
         return;
     }
 
-    if ("Modern".equals(activeGuiMode)) {
-        if (m0 && !prevMouse0) modernGui.mouseClicked(mouseX, mouseY, 0);
-        if (m1 && !prevMouse1) modernGui.mouseClicked(mouseX, mouseY, 1);
-        if (m2 && !prevMouse2) modernGui.mouseClicked(mouseX, mouseY, 2);
-        if (m3 && !prevMouse3) modernGui.mouseClicked(mouseX, mouseY, 3);
-        if (m4 && !prevMouse4) modernGui.mouseClicked(mouseX, mouseY, 4);
-        if (!m0 && prevMouse0) modernGui.mouseReleased(mouseX, mouseY, 0);
-        if (!m1 && prevMouse1) modernGui.mouseReleased(mouseX, mouseY, 1);
-        if (!m2 && prevMouse2) modernGui.mouseReleased(mouseX, mouseY, 2);
-    } else {
-        if (m0 && !prevMouse0) dropdownGui.mouseClicked(mouseX, mouseY, 0);
-        if (m1 && !prevMouse1) dropdownGui.mouseClicked(mouseX, mouseY, 1);
-        if (m2 && !prevMouse2) dropdownGui.mouseClicked(mouseX, mouseY, 2);
-        if (m3 && !prevMouse3) dropdownGui.mouseClicked(mouseX, mouseY, 3);
-        if (m4 && !prevMouse4) dropdownGui.mouseClicked(mouseX, mouseY, 4);
-        if (!m0 && prevMouse0) dropdownGui.mouseReleased(mouseX, mouseY, 0);
-        if (!m1 && prevMouse1) dropdownGui.mouseReleased(mouseX, mouseY, 1);
-        if (!m2 && prevMouse2) dropdownGui.mouseReleased(mouseX, mouseY, 2);
-    }
+    if (m0 && !prevMouse0) modernGui.mouseClicked(mouseX, mouseY, 0);
+    if (m1 && !prevMouse1) modernGui.mouseClicked(mouseX, mouseY, 1);
+    if (m2 && !prevMouse2) modernGui.mouseClicked(mouseX, mouseY, 2);
+    if (m3 && !prevMouse3) modernGui.mouseClicked(mouseX, mouseY, 3);
+    if (m4 && !prevMouse4) modernGui.mouseClicked(mouseX, mouseY, 4);
+    if (!m0 && prevMouse0) modernGui.mouseReleased(mouseX, mouseY, 0);
+    if (!m1 && prevMouse1) modernGui.mouseReleased(mouseX, mouseY, 1);
+    if (!m2 && prevMouse2) modernGui.mouseReleased(mouseX, mouseY, 2);
     prevMouse0 = m0;
     prevMouse1 = m1;
     prevMouse2 = m2;
@@ -312,11 +293,7 @@ public void onScreenRender(String screenName, int mouseX, int mouseY, float part
     ShaderPipeline.clearAll();
     boolean shadersOn = interfaceModule != null && interfaceModule.shaders.isToggled();
 
-    if ("Modern".equals(activeGuiMode)) {
-        modernGui.drawGui(mouseX, mouseY, partialTicks, wheel, shadersOn);
-    } else {
-        dropdownGui.drawGui(mouseX, mouseY, partialTicks, wheel, shadersOn);
-    }
+    modernGui.drawGui(mouseX, mouseY, partialTicks, wheel, shadersOn);
 
     ShaderPipeline.executeAll(shadersOn, getBlurPasses(), getBlurOffset(), getBloomPasses(), getBloomOffset());
     DrawUtil.resetGlState();
@@ -356,11 +333,7 @@ public boolean onKeyPress(char typedChar, int keyCode) {
     }
 
     if (keyCode == 1) {
-        if ("Modern".equals(activeGuiMode) && modernGui.unfocusAnyText()) {
-            syncClickGuiKeybind();
-            return false;
-        }
-        if ("Dropdown".equals(activeGuiMode) && dropdownGui.unfocusAnyText()) {
+        if (modernGui.unfocusAnyText()) {
             syncClickGuiKeybind();
             return false;
         }
@@ -368,11 +341,7 @@ public boolean onKeyPress(char typedChar, int keyCode) {
         return false;
     }
 
-    if ("Modern".equals(activeGuiMode)) {
-        modernGui.keyTyped(typedChar, keyCode);
-    } else {
-        dropdownGui.keyTyped(typedChar, keyCode);
-    }
+    modernGui.keyTyped(typedChar, keyCode);
     syncClickGuiKeybind();
     return false;
 }
@@ -435,13 +404,8 @@ public void onGuiUpdate(String guiName, boolean opened) {
         prevMouse2 = false;
         prevMouse3 = false;
         prevMouse4 = false;
-        if ("Modern".equals(activeGuiMode) && modernGui != null) {
+        if (modernGui != null) {
             modernGui.onGuiClosed();
-        } else if (dropdownGui != null) {
-            dropdownGui.onGuiClosed();
-            if (clickGuiModule != null && clickGuiModule.isEnabled()) {
-                clickGuiModule.setEnabled(false);
-            }
         }
         savePersistedState();
     }
@@ -478,9 +442,6 @@ static void ensureModulesCreated() {
 static void ensureGuisCreated() {
     if (modernGui == null) {
         modernGui = new ModernGui();
-    }
-    if (dropdownGui == null) {
-        dropdownGui = new DropdownGui();
     }
 }
 
@@ -522,9 +483,6 @@ static void registerRenderModules() {
     if (modernGui != null) {
         modernGui.rebuildModuleComponents();
     }
-    if (dropdownGui != null) {
-        dropdownGui.markDirty();
-    }
 }
 
 static void unregisterRenderModules() {
@@ -561,8 +519,8 @@ static void openRiseClickGui() {
     if (!toggleOn(showClickGuiSetting)) {
         return;
     }
+    pendingWheel = 0;
     ensureGuisCreated();
-    activeGuiMode = clickGuiModule != null ? clickGuiModule.getModeName() : "Modern";
     prevMouse0 = keybinds.isMouseDown(0);
     prevMouse1 = keybinds.isMouseDown(1);
     prevMouse2 = keybinds.isMouseDown(2);
@@ -580,11 +538,7 @@ static void openRiseClickGui() {
         lastGuiMouseY = disp[1] - rawMouse[1] / disp[2] - 1;
     }
 
-    if ("Modern".equals(activeGuiMode)) {
-        modernGui.initGui();
-    } else {
-        dropdownGui.initGui();
-    }
+    modernGui.initGui();
     render.showGui();
 }
 
@@ -594,14 +548,9 @@ static void closeRiseClickGui() {
     prevGuiBindDown = true;
     keyToggleCooldown.reset();
     savePersistedState();
-    if ("Modern".equals(activeGuiMode) && modernGui != null) {
+    if (modernGui != null) {
         modernGui.onGuiClosed();
         modernGui.closingRenderActive = true;
-    } else if (dropdownGui != null) {
-        dropdownGui.onGuiClosed();
-        if (clickGuiModule != null && clickGuiModule.isEnabled()) {
-            clickGuiModule.setEnabled(false);
-        }
     }
     if ("EmptyGuiScreen".equals(client.getScreen())) {
         client.closeScreen();
@@ -609,13 +558,7 @@ static void closeRiseClickGui() {
 }
 
 static boolean isAnyGuiTextFocused() {
-    if ("Modern".equals(activeGuiMode) && modernGui != null) {
-        return modernGui.hasActiveTextInput();
-    }
-    if ("Dropdown".equals(activeGuiMode) && dropdownGui != null) {
-        return dropdownGui.hasActiveTextInput();
-    }
-    return false;
+    return modernGui != null && modernGui.hasActiveTextInput();
 }
 
 static void syncModuleStatesSnapshot() {
@@ -867,6 +810,21 @@ public static boolean themeIsRainbow(int index) {
 /** Animated accent colour of the active theme (RGB). */
 public static int themeAccentRgb(double position) {
     return activeTheme.accentAt(position, 0.0).getRGB() & 0xFFFFFF;
+}
+
+static int pendingWheel = 0;
+
+/** Called by the Interface module for every mouse event; collects the wheel while a Rise GUI is open. */
+public static void feedWheel(int delta) {
+    if (delta != 0 && guiScreenOpen) {
+        pendingWheel += delta;
+    }
+}
+
+static int takePendingWheel() {
+    int value = pendingWheel;
+    pendingWheel = 0;
+    return value;
 }
 
 static void loadPersistedState() {
@@ -2584,15 +2542,20 @@ static final class Loc {
 }
 
 static final class RiseClickGuiModule extends ravens4.module.Module {
-    static final String[] MODES = new String[]{"Modern", "Dropdown"};
-    final ravens4.module.setting.impl.SliderSetting modeSetting;
     final ravens4.module.setting.impl.KeySetting keybindSetting;
+    final ravens4.module.setting.impl.SliderSetting sizeSetting;
 
     RiseClickGuiModule() {
         super("ClickGUI", ravens4.module.Module.category.render, currentGuiBind);
         this.alwaysOn = true;
-        this.registerSetting(this.modeSetting = new ravens4.module.setting.impl.SliderSetting("Mode", 0, MODES));
+        this.registerSetting(this.sizeSetting = new ravens4.module.setting.impl.SliderSetting("Size", 100.0, 1.0, 100.0, 1.0));
         this.registerSetting(this.keybindSetting = new ravens4.module.setting.impl.KeySetting("Keybind", currentGuiBind));
+    }
+
+    /** Scale of the Modern GUI: Size 100 is the normal 400x300 window, Size 1 is 30% of it. */
+    double getModernScale() {
+        double size = Math.max(1.0, Math.min(100.0, this.sizeSetting.getInput()));
+        return 0.3 + 0.7 * (size - 1.0) / 99.0;
     }
 
     public void onKeyBind() {
@@ -2602,8 +2565,7 @@ static final class RiseClickGuiModule extends ravens4.module.Module {
     }
 
     String getModeName() {
-        int idx = clampInt((int) Math.round(this.modeSetting.getInput()), 0, MODES.length - 1);
-        return MODES[idx];
+        return "Modern";
     }
 
     @Override
@@ -2627,7 +2589,6 @@ static final class RiseClickGuiModule extends ravens4.module.Module {
 }
 
 static final class RiseInterfaceModule extends ravens4.module.Module {
-    static final String[] MODES = new String[]{"Modern", "Wurst", "Classic", "Creida"};
     static final String[] MODULES_TO_SHOW = new String[]{"All", "Exclude render", "Only bound"};
     static final String[] INFO_TYPES = new String[]{"Rise", "Traditional"};
 
@@ -2636,10 +2597,7 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
     static final String[] MODERN_SHADER_EFFECTS = new String[]{"Glow", "Shadow"};
     static final String[] MODERN_BACKGROUNDS = new String[]{"Off", "Normal"};
 
-    static final String[] CLASSIC_COLOR_MODES = new String[]{"Static", "Rainbow", "Fade"};
-    static final String[] CLASSIC_ALIGNMENTS = new String[]{"Right", "Left"};
 
-    final ravens4.module.setting.impl.SliderSetting mode;
     final ravens4.module.setting.impl.SliderSetting modernColorMode;
     final ravens4.module.setting.impl.SliderSetting modernFont;
     final ravens4.module.setting.impl.TextSetting modernCustomFont;
@@ -2650,17 +2608,7 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
     final ravens4.module.setting.impl.SliderSetting modernBackground;
     final ravens4.module.setting.impl.TextSetting modernClientName;
 
-    final ravens4.module.setting.impl.SliderSetting classicColorMode;
-    final ravens4.module.setting.impl.SliderSetting classicAlignment;
-    final ravens4.module.setting.impl.ButtonSetting classicSidebar;
-    final ravens4.module.setting.impl.ButtonSetting classicBackground;
-    final ravens4.module.setting.impl.ButtonSetting classicShowFps;
-    final ravens4.module.setting.impl.ButtonSetting classicShowTime;
-    final ravens4.module.setting.impl.ButtonSetting classicShowPing;
-    final ravens4.module.setting.impl.ButtonSetting classicShowCoords;
-    final ravens4.module.setting.impl.TextSetting classicClientName;
 
-    final ravens4.module.setting.impl.ButtonSetting creidaFont;
 
     final ravens4.module.setting.impl.SliderSetting modulesToShow;
     final ravens4.module.setting.impl.ButtonSetting suffix;
@@ -2680,8 +2628,6 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
         super("Interface", ravens4.module.Module.category.render, 0);
         this.alwaysOn = true;
 
-        this.registerSetting(this.mode = new ravens4.module.setting.impl.SliderSetting("Mode", 0, MODES));
-
         this.registerSetting(this.modernColorMode = new ravens4.module.setting.impl.SliderSetting("ArrayList Color Mode", 1, MODERN_COLOR_MODES));
         this.registerSetting(this.modernFont = new ravens4.module.setting.impl.SliderSetting("ArrayList Font", 0, MODERN_FONTS));
         this.registerSetting(this.modernCustomFont = new ravens4.module.setting.impl.TextSetting("Custom Installed Font", "Arial", "Font name...", 48));
@@ -2692,17 +2638,7 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
         this.registerSetting(this.modernBackground = new ravens4.module.setting.impl.SliderSetting("BackGround", 1, MODERN_BACKGROUNDS));
         this.registerSetting(this.modernClientName = new ravens4.module.setting.impl.TextSetting("Custom Client Name", "", "Custom tag...", 48));
 
-        this.registerSetting(this.classicColorMode = new ravens4.module.setting.impl.SliderSetting("ArrayList Color Mode", 1, CLASSIC_COLOR_MODES));
-        this.registerSetting(this.classicAlignment = new ravens4.module.setting.impl.SliderSetting("ArrayList Alignment", 0, CLASSIC_ALIGNMENTS));
-        this.registerSetting(this.classicSidebar = new ravens4.module.setting.impl.ButtonSetting("Arraylist Side Bar", false));
-        this.registerSetting(this.classicBackground = new ravens4.module.setting.impl.ButtonSetting("Arraylist Background", false));
-        this.registerSetting(this.classicShowFps = new ravens4.module.setting.impl.ButtonSetting("Show Fps", false));
-        this.registerSetting(this.classicShowTime = new ravens4.module.setting.impl.ButtonSetting("Show Time", false));
-        this.registerSetting(this.classicShowPing = new ravens4.module.setting.impl.ButtonSetting("Show Ping", false));
-        this.registerSetting(this.classicShowCoords = new ravens4.module.setting.impl.ButtonSetting("Show Coordinates", true));
-        this.registerSetting(this.classicClientName = new ravens4.module.setting.impl.TextSetting("Custom Client Name", "Rise", "Client name...", 48));
 
-        this.registerSetting(this.creidaFont = new ravens4.module.setting.impl.ButtonSetting("Font", true));
 
         this.registerSetting(this.modulesToShow = new ravens4.module.setting.impl.SliderSetting("Modules to Show", 1, MODULES_TO_SHOW));
         this.registerSetting(this.suffix = new ravens4.module.setting.impl.ButtonSetting("Suffix", true));
@@ -2725,7 +2661,7 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
     }
 
     String getModeName() {
-        return getOption(this.mode, MODES);
+        return "Modern";
     }
 
     @Override
@@ -2747,10 +2683,7 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
 
     @Override
     public void guiUpdate() {
-        String m = getModeName();
-        boolean isModern = "Modern".equals(m);
-        boolean isClassic = "Classic".equals(m);
-        boolean isCreida = "Creida".equals(m);
+        boolean isModern = true;
         boolean isCustomFont = isModern && "Custom".equals(getOption(this.modernFont, MODERN_FONTS));
 
         this.modernColorMode.setVisible(isModern, this);
@@ -2763,17 +2696,6 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
         this.modernBackground.setVisible(isModern, this);
         this.modernClientName.setVisible(isModern, this);
 
-        this.classicColorMode.setVisible(isClassic, this);
-        this.classicAlignment.setVisible(isClassic, this);
-        this.classicSidebar.setVisible(isClassic, this);
-        this.classicBackground.setVisible(isClassic, this);
-        this.classicShowFps.setVisible(isClassic, this);
-        this.classicShowTime.setVisible(isClassic, this);
-        this.classicShowPing.setVisible(isClassic, this);
-        this.classicShowCoords.setVisible(isClassic, this);
-        this.classicClientName.setVisible(isClassic, this);
-
-        this.creidaFont.setVisible(isCreida, this);
     }
 }
 
@@ -4595,15 +4517,6 @@ static final class InterfaceEngine {
         for (int i = 0; i < allEntries.size(); i++) {
             ArrayEntry e = allEntries.get(i);
             e.rawName = e.mod.getName();
-            if ("Wurst".equals(mode)) {
-                e.tag = "";
-                e.showTag = false;
-                e.displayName = e.rawName;
-                e.displayTag = "";
-                e.nameWidth = activeListFont.width(e.displayName);
-                e.tagWidth = 0.0f;
-                continue;
-            }
             e.tag = resolveModuleTag(e.mod, riseInfo);
             e.showTag = !e.tag.isEmpty() && suffixOn;
 
@@ -4616,11 +4529,7 @@ static final class InterfaceEngine {
             e.displayName = n;
             e.displayTag = t;
             e.nameWidth = activeListFont.width(n);
-            if ("Creida".equals(mode)) {
-                e.tagWidth = e.showTag ? (activeListFont.width(t) + 4.0f) : 1.0f;
-            } else {
-                e.tagWidth = e.showTag ? (activeListFont.width(t) + 3.0f) : 0.0f;
-            }
+            e.tagWidth = e.showTag ? (activeListFont.width(t) + 3.0f) : 0.0f;
 
             if ("Modern".equals(mode)) {
                 String cm = hud.getOption(hud.modernColorMode, RiseInterfaceModule.MODERN_COLOR_MODES);
@@ -4642,9 +4551,6 @@ static final class InterfaceEngine {
             String f = hud.getOption(hud.modernFont, RiseInterfaceModule.MODERN_FONTS);
             if ("Minecraft".equals(f)) return RiseFont.VANILLA;
             return RiseFont.F18;
-        }
-        if ("Creida".equals(mode)) {
-            return hud.creidaFont.isToggled() ? RiseFont.F24 : RiseFont.VANILLA;
         }
         if (activeLang == RiseLang.ZH_ZH) {
             return RiseFont.F18;
@@ -4670,20 +4576,11 @@ static final class InterfaceEngine {
             boolean isMc = (listFont == RiseFont.VANILLA);
             moduleSpacing = listFont.height() + (isMc ? 2.0f : 3.0f);
             edgeOffset = 10.0f;
-        } else if ("Wurst".equals(mode)) {
-            moduleSpacing = listFont.height() + 1.0f;
-            edgeOffset = 4.0f;
-        } else if ("Classic".equals(mode)) {
-            moduleSpacing = listFont.height() + 2.0f;
-            edgeOffset = 3.0f;
-        } else if ("Creida".equals(mode)) {
-            moduleSpacing = RiseFont.VANILLA.height() + 3.0f;
-            edgeOffset = 3.0f;
         }
 
         long dt = Math.min(animTimer.elapsed(), 100L);
         animTimer.reset();
-        float speedDiv = "Classic".equals(mode) ? 10.0f : 100.0f;
+        float speedDiv = 100.0f;
 
         for (int i = 0; i < allEntries.size(); i++) {
             ArrayEntry e = allEntries.get(i);
@@ -4723,12 +4620,6 @@ static final class InterfaceEngine {
 
         if ("Modern".equals(mode)) {
             renderModernHud(hud, sw, sh, listFont);
-        } else if ("Wurst".equals(mode)) {
-            renderWurstHud(hud, sw, sh, listFont);
-        } else if ("Classic".equals(mode)) {
-            renderClassicHud(hud, sw, sh, listFont);
-        } else if ("Creida".equals(mode)) {
-            renderCreidaHud(hud, sw, sh);
         }
     }
 
@@ -4915,184 +4806,6 @@ static final class InterfaceEngine {
                 font.draw(e.displayTag, x + e.nameWidth + 3.0, y, -3355444);
             }
         }
-    }
-
-    private static void renderWurstHud(final RiseInterfaceModule hud, final float sw, final float sh, final RiseFont listFont) {
-        ShaderPipeline.addNormal(1, new Runnable() {
-            public void run() {
-                for (int i = 0; i < sortedEntries.size(); i++) {
-                    ArrayEntry e = sortedEntries.get(i);
-                    if (e.anim == 0.0f) continue;
-                    listFont.drawShadow(e.rawName, e.pos.x, e.pos.y, Color.WHITE.getRGB());
-                }
-
-                if (toggleOn(showWatermarkSetting)) {
-                    DrawUtil.rect(0.0, 10.0, 185.0, 12.0, Palette.withAlpha(Color.WHITE, 100));
-                    RiseFont.F32.drawShadow("\u00a76\u00a7lWURST", 4.0, 7.5, new Color(235, 130, 20).getRGB());
-                    listFont.draw("v6 MC 1.8.9", 95.0, 12.5, Color.BLACK.getRGB());
-                }
-            }
-        });
-    }
-
-    private static void renderClassicHud(final RiseInterfaceModule hud, final float sw, final float sh, final RiseFont listFont) {
-        final String colorMode = hud.getOption(hud.classicColorMode, RiseInterfaceModule.CLASSIC_COLOR_MODES);
-        final boolean alignLeft = "Left".equals(hud.getOption(hud.classicAlignment, RiseInterfaceModule.CLASSIC_ALIGNMENTS));
-        final boolean sideBar = hud.classicSidebar.isToggled();
-        final boolean drawBg = hud.classicBackground.isToggled();
-        final boolean showCoords = hud.classicShowCoords.isToggled();
-
-        Entity p = client.getPlayer();
-        Vec3 pos = p != null ? p.getPosition() : new Vec3(0, 0, 0);
-        final String sx = String.valueOf(Math.round(pos.x));
-        final String sy = String.valueOf(Math.round(pos.y));
-        final String sz = String.valueOf(Math.round(pos.z));
-        final String watermark = buildClassicWatermark(hud);
-
-        ShaderPipeline.addNormal(1, new Runnable() {
-            public void run() {
-                int idx = 0;
-                for (int i = 0; i < sortedEntries.size(); i++) {
-                    ArrayEntry e = sortedEntries.get(i);
-                    if (e.anim == 0.0f) continue;
-
-                    double x = e.pos.x;
-                    double y = e.pos.y;
-                    if (alignLeft) {
-                        y = e.pos.y + listFont.height() + 2.0;
-                        x = sideBar ? (3.0f + e.anim - 8.0f) : (3.0f + e.anim - 10.0f);
-                    }
-
-                    Color col = activeTheme.firstColor();
-                    if ("Fade".equals(colorMode)) {
-                        col = activeTheme.accentAt(0.0, e.pos.y);
-                    } else if ("Rainbow".equals(colorMode)) {
-                        col = DrawUtil.rainbowColor(500 * idx / 6);
-                    }
-                    e.color = col;
-
-                    if (drawBg) {
-                        DrawUtil.rect(x - 2.0, y - 2.0, e.nameWidth + e.tagWidth + 4.0f, moduleSpacing, RiseTheme.backgroundShade);
-                    }
-                    if (sideBar) {
-                        if (alignLeft) {
-                            DrawUtil.rect(x - (drawBg ? 2.0 : 3.0), y - 2.0, 1.0, moduleSpacing, col);
-                        } else {
-                            DrawUtil.rect(x + e.nameWidth + e.tagWidth + 2.0, y - 2.0, 1.0, moduleSpacing, col);
-                        }
-                    }
-
-                    listFont.drawShadow(e.displayName, x, y, col.getRGB());
-                    if (e.showTag) {
-                        listFont.drawShadow(e.displayTag, x + e.nameWidth + 3.0, y, -3355444);
-                    }
-                    idx++;
-                }
-
-                int mainCol = "Rainbow".equals(colorMode) ? DrawUtil.rainbowColor(1000).getRGB() : activeTheme.firstColor().getRGB();
-                if (watermark != null && toggleOn(showWatermarkSetting)) {
-                    listFont.drawShadow(watermark, 3.0, 3.0, mainCol);
-                }
-
-                if (showCoords && !isChatScreenOpen()) {
-                    double baseY = sh - 10.0;
-                    float fh = RiseFont.VANILLA.height();
-                    listFont.drawShadow("X:\u00a77 " + sx, 3.0, baseY - fh * 2.0, mainCol);
-                    listFont.drawShadow("Y:\u00a77 " + sy, 3.0, baseY - fh, mainCol);
-                    listFont.drawShadow("Z:\u00a77 " + sz, 3.0, baseY, mainCol);
-                }
-            }
-        });
-    }
-
-    private static String buildClassicWatermark(RiseInterfaceModule hud) {
-        String raw = hud.classicClientName.getText();
-        if (raw == null || raw.isEmpty()) {
-            hud.classicClientName.setText("Rise");
-            raw = "Rise";
-        }
-        String text = raw.charAt(0) + "\u00a77" + raw.substring(1);
-        if (hud.classicShowTime.isToggled()) {
-            text = text + " [\u00a7f" + formatTime12Hour() + "\u00a77]";
-        }
-        if (hud.classicShowFps.isToggled()) {
-            text = text + " [\u00a7f" + client.getFPS() + " FPS\u00a77]";
-        }
-        if (hud.classicShowPing.isToggled()) {
-            text = text + " [\u00a7f" + getPlayerPingSafe() + "ms\u00a77]";
-        }
-        return text;
-    }
-
-    private static void renderCreidaHud(final RiseInterfaceModule hud, final float sw, final float sh) {
-        final boolean customFont = hud.creidaFont.isToggled();
-        final RiseFont font = customFont ? RiseFont.F24 : RiseFont.VANILLA;
-        final double rowH = RiseFont.VANILLA.height() + 3.0;
-        final String pName = client.getUser() != null ? client.getUser() : "Player";
-        final String wmText = CLIENT_NAME + " Client | " + CLIENT_VERSION + " | " + pName + " | " + formatTime24Hour();
-        final double wmWidth = (customFont ? 8.0 : 8.0) + font.width(wmText) + 4.0;
-
-        ShaderPipeline.addBlur(new Runnable() {
-            public void run() {
-                for (int i = 0; i < sortedEntries.size(); i++) {
-                    ArrayEntry e = sortedEntries.get(i);
-                    if (e.anim == 0.0f) continue;
-                    double dx = e.pos.x - 3.0;
-                    double dy = e.pos.y + 1.0;
-                    double dw = e.nameWidth + e.tagWidth + 5.0;
-                    DrawUtil.rect(dx - 1.0, dy - 2.0, dw, rowH, Color.BLACK);
-                }
-                if (toggleOn(showWatermarkSetting)) {
-                    DrawUtil.roundedRect(2.0, 3.0, wmWidth, 15.0, 4.0, Color.BLACK);
-                }
-            }
-        });
-
-        ShaderPipeline.addBloom(new Runnable() {
-            public void run() {
-                for (int i = 0; i < sortedEntries.size(); i++) {
-                    ArrayEntry e = sortedEntries.get(i);
-                    if (e.anim == 0.0f) continue;
-                    double dx = e.pos.x - 3.0;
-                    double dy = e.pos.y + 1.0;
-                    double dw = e.nameWidth + e.tagWidth + 5.0;
-                    DrawUtil.rect(dx - 1.0, dy - 2.0, dw, rowH, Color.BLACK);
-                }
-                if (toggleOn(showWatermarkSetting)) {
-                    DrawUtil.roundedRect(2.0, 3.0, wmWidth - 1.0, 15.0, 5.0, Color.BLACK);
-                }
-            }
-        });
-
-        ShaderPipeline.addNormal(1, new Runnable() {
-            public void run() {
-                for (int i = 0; i < sortedEntries.size(); i++) {
-                    ArrayEntry e = sortedEntries.get(i);
-                    if (e.anim == 0.0f) continue;
-                    double dx = e.pos.x - 3.0;
-                    double dy = e.pos.y + 1.0;
-                    double dw = e.nameWidth + e.tagWidth + 5.0;
-                    Color ac = activeTheme.accentAt(e.pos.x, e.pos.y / 1.5);
-                    DrawUtil.rect(dx - 1.0, dy - 2.0, dw, rowH, new Color(0, 0, 0, 110));
-                    DrawUtil.rect(dx + e.nameWidth + e.tagWidth + 4.0, dy - 2.0, 1.0, rowH, ac);
-                    font.drawShadow(e.displayName, dx + 1.0, dy - (customFont ? 1.5 : 0.0), ac.getRGB());
-                    if (e.showTag) {
-                        font.drawShadow(e.displayTag, dx + 1.0 + e.nameWidth + 4.0, dy - (customFont ? 1.5 : 0.0), -3355444);
-                    }
-                }
-
-                if (toggleOn(showWatermarkSetting)) {
-                    DrawUtil.roundedRect(2.0, 3.0, wmWidth, 15.0, 4.0, new Color(0, 0, 0, 100));
-                    float xOff = 0.0f;
-                    double textY = customFont ? 5.5 : 6.5;
-                    for (int i = 0; i < wmText.length(); i++) {
-                        String ch = String.valueOf(wmText.charAt(i));
-                        font.drawShadow(ch, 6.0 + xOff, textY, activeTheme.accentAt(i, i).getRGB());
-                        xOff += font.width(ch);
-                    }
-                }
-            }
-        });
     }
 
     private static String toRoman(int num) {
@@ -6465,10 +6178,7 @@ static final class ModCard {
         return s == im.modernColorMode || s == im.modernFont || s == im.modernCustomFont
                 || s == im.modernShaderEffect || s == im.modernDropShadow || s == im.modernSidebar
                 || s == im.modernParticlesOnKill || s == im.modernBackground || s == im.modernClientName
-                || s == im.classicColorMode || s == im.classicAlignment || s == im.classicSidebar
-                || s == im.classicBackground || s == im.classicShowFps || s == im.classicShowTime
-                || s == im.classicShowPing || s == im.classicShowCoords || s == im.classicClientName
-                || s == im.creidaFont || s == im.blurRadius || s == im.blurCompression
+                || s == im.blurRadius || s == im.blurCompression
                 || s == im.bloomRadius || s == im.bloomCompression || s == im.backgroundAlpha;
     }
 
@@ -7791,6 +7501,10 @@ static final class ModernGui {
     boolean dragging = false;
 
     double scaleValue = 0.0;
+    /** User chosen size of the window (ClickGUI "Size" setting). */
+    double userScale = 1.0;
+    /** scaleValue (open/close animation) * userScale: what is actually drawn. */
+    double drawScale = 0.0;
     double opacityValue = 0.0;
     int rounding = 12;
     Vec2d scaleOffset = new Vec2d(0.0, 0.0);
@@ -7906,17 +7620,22 @@ static final class ModernGui {
         renderInternal(mouseX, mouseY, partialTicks, 0, false, shadersOn);
     }
 
-    private void renderInternal(final int mouseX, final int mouseY, final float partialTicks, final int wheel,
+    private void renderInternal(final int rawMouseX, final int rawMouseY, final float partialTicks, final int wheel,
                                 final boolean openingOrOpen, final boolean shadersOn) {
         this.size.set(400.0f, 300.0f);
+        this.userScale = clickGuiModule != null ? clickGuiModule.getModernScale() : 1.0;
 
         if (this.dragging && openingOrOpen) {
             if (this.currentPage instanceof ThemesPage) {
                 ((ThemesPage) this.currentPage).snapPositionsImmediately();
             }
-            this.position.x = mouseX + this.dragOffsetX;
-            this.position.y = mouseY + this.dragOffsetY;
+            // drag by the window centre: it does not move when the window is scaled around it
+            this.position.x = rawMouseX + this.dragOffsetX - this.size.x / 2.0f;
+            this.position.y = rawMouseY + this.dragOffsetY - this.size.y / 2.0f;
         }
+
+        final int mouseX = toLogicalX(rawMouseX);
+        final int mouseY = toLogicalY(rawMouseY);
 
         this.opacityAnim.setEasing(openingOrOpen ? Easing.EASE_OUT_EXPO : Easing.LINEAR);
         this.opacityAnim.setDuration(openingOrOpen ? 300L : 100L);
@@ -7939,9 +7658,10 @@ static final class ModernGui {
             return;
         }
 
+        this.drawScale = this.scaleValue * this.userScale;
         this.scaleOffset = new Vec2d(
-                (double) (this.position.x + this.size.x / 2.0f) * (1.0 - this.scaleValue),
-                (double) (this.position.y + this.size.y / 2.0f) * (1.0 - this.scaleValue)
+                (double) (this.position.x + this.size.x / 2.0f) * (1.0 - this.drawScale),
+                (double) (this.position.y + this.size.y / 2.0f) * (1.0 - this.drawScale)
         );
 
         final long switchDuration = 200L;
@@ -7951,25 +7671,25 @@ static final class ModernGui {
         if (shadersOn) {
             ShaderPipeline.addBlur(new Runnable() {
                 public void run() {
-                    double bx = position.x * scaleValue + scaleOffset.x;
-                    double by = position.y * scaleValue + scaleOffset.y;
-                    double bw = size.x * scaleValue;
-                    double bh = size.y * scaleValue;
-                    DrawUtil.roundedRect(bx, by, bw, bh, rounding * scaleValue, Color.WHITE);
+                    double bx = position.x * drawScale + scaleOffset.x;
+                    double by = position.y * drawScale + scaleOffset.y;
+                    double bw = size.x * drawScale;
+                    double bh = size.y * drawScale;
+                    DrawUtil.roundedRect(bx, by, bw, bh, rounding * drawScale, Color.WHITE);
                 }
             });
 
             ShaderPipeline.addBloom(new Runnable() {
                 public void run() {
                     gl.push();
-                    if (scaleValue != 1.0) {
+                    if (drawScale != 1.0) {
                         gl.translate(scaleOffset.x, scaleOffset.y, 0.0);
-                        gl.scale((float) scaleValue, (float) scaleValue, 1.0f);
+                        gl.scale((float) drawScale, (float) drawScale, 1.0f);
                     }
-                    double sx = position.x * scaleValue + scaleOffset.x;
-                    double sy = position.y * scaleValue + scaleOffset.y;
-                    double sw = size.x * scaleValue;
-                    double sh = (size.y - 4.0f) * scaleValue;
+                    double sx = position.x * drawScale + scaleOffset.x;
+                    double sy = position.y * drawScale + scaleOffset.y;
+                    double sw = size.x * drawScale;
+                    double sh = (size.y - 4.0f) * drawScale;
                     DrawUtil.enableScissor(sx, sy, sw, sh);
                     if (renderedPage != null) {
                         renderedPage.renderBloom();
@@ -7992,9 +7712,9 @@ static final class ModernGui {
         ShaderPipeline.addNormal(1, new Runnable() {
             public void run() {
                 gl.push();
-                if (scaleValue != 1.0) {
+                if (drawScale != 1.0) {
                     gl.translate(scaleOffset.x, scaleOffset.y, 0.0);
-                    gl.scale((float) scaleValue, (float) scaleValue, 1.0f);
+                    gl.scale((float) drawScale, (float) drawScale, 1.0f);
                 }
 
                 if (scaleValue > 0.993) {
@@ -8040,17 +7760,30 @@ static final class ModernGui {
     }
 
     void reapplyGuiScissor() {
-        double sx = this.position.x * this.scaleValue + this.scaleOffset.x + 1.0;
-        double sy = this.position.y * this.scaleValue + this.scaleOffset.y + 1.0;
-        double sw = this.size.x * this.scaleValue - 2.0;
-        double sh = this.size.y * this.scaleValue - 2.0;
+        double sx = this.position.x * this.drawScale + this.scaleOffset.x + 1.0;
+        double sy = this.position.y * this.drawScale + this.scaleOffset.y + 1.0;
+        double sw = this.size.x * this.drawScale - 2.0;
+        double sh = this.size.y * this.drawScale - 2.0;
         DrawUtil.enableScissor(sx, sy, sw, sh);
     }
 
-    void mouseClicked(int mouseX, int mouseY, int button) {
+    /** Mouse position on the 400x300 layout of the window, whatever size the window is drawn at. */
+    int toLogicalX(int rawX) {
+        double centre = this.position.x + this.size.x / 2.0;
+        return (int) Math.round(centre + (rawX - centre) / Math.max(0.01, this.userScale));
+    }
+
+    int toLogicalY(int rawY) {
+        double centre = this.position.y + this.size.y / 2.0;
+        return (int) Math.round(centre + (rawY - centre) / Math.max(0.01, this.userScale));
+    }
+
+    void mouseClicked(int rawMouseX, int rawMouseY, int button) {
+        int mouseX = toLogicalX(rawMouseX);
+        int mouseY = toLogicalY(rawMouseY);
         if (button == 0 && DrawUtil.hovered(this.position.x, this.position.y, this.size.x, 15.0, mouseX, mouseY)) {
-            this.dragOffsetX = this.position.x - mouseX;
-            this.dragOffsetY = this.position.y - mouseY;
+            this.dragOffsetX = this.position.x + this.size.x / 2.0f - rawMouseX;
+            this.dragOffsetY = this.position.y + this.size.y / 2.0f - rawMouseY;
             this.dragging = true;
             return;
         }
@@ -8091,885 +7824,6 @@ static final class ModernGui {
 
     boolean unfocusAnyText() {
         return this.currentPage != null && this.currentPage.unfocusText();
-    }
-}
-
-static final class DropdownPanel {
-    final SidebarCategory category;
-    final List<ModCard> cards;
-    boolean opened = false;
-    final Animation expandAnim = new Animation(Easing.EASE_OUT_QUINT, 300L);
-    final Animation headerHoverAnim = new Animation(Easing.LINEAR, 100L);
-    double x = 0.0;
-    double y = 0.0;
-    private double lastWidth = 103.2;
-    private double lastScale = 0.8;
-    /** Tallest the body may get before the panel scrolls internally (set by DropdownGui each frame). */
-    double maxBodyH = 100000.0;
-    private double contentH = 0.0;
-    private double panelTargetScroll = 0.0;
-    private final Animation panelScrollAnim = new Animation(Easing.EASE_OUT_EXPO, 200L);
-
-    private final Map<ravens4.module.setting.Setting, Boolean> modeAccordionOpen =
-            new HashMap<ravens4.module.setting.Setting, Boolean>();
-    private ravens4.module.setting.impl.SliderSetting draggingSlider = null;
-    private ravens4.module.Module draggingSliderOwner = null;
-    private double dragStartMouseX = 0.0;
-    private double dragStartVal = 0.0;
-
-    private ravens4.module.setting.impl.TextSetting focusedTextSetting = null;
-    private ravens4.module.setting.impl.KeySetting listeningKeySetting = null;
-    private ravens4.module.Module listeningModuleBind = null;
-
-    DropdownPanel(SidebarCategory category, List<ModCard> cards) {
-        this.category = category;
-        this.cards = cards;
-    }
-
-    void setPosition(double x, double y) {
-        this.x = x;
-        this.y = y;
-    }
-
-    double totalHeight() {
-        return 22.0 * this.lastScale + this.expandAnim.value;
-    }
-
-    private double maxPanelScroll() {
-        return Math.max(0.0, this.contentH - this.maxBodyH);
-    }
-
-    /** Scrolls this panel's body when the cursor is over it. Returns true if the wheel was used. */
-    boolean tryScroll(double drawX, double drawY, double panelW, int mouseX, int mouseY, int wheel) {
-        if (wheel == 0 || !this.opened || this.expandAnim.value <= 1.0) {
-            return false;
-        }
-        double headerH = 22.0 * this.lastScale;
-        if (!DrawUtil.hovered(drawX, drawY + headerH, panelW, this.expandAnim.value, mouseX, mouseY)) {
-            return false;
-        }
-        double max = maxPanelScroll();
-        if (max <= 0.0) {
-            return false;
-        }
-        this.panelTargetScroll = clampDouble(this.panelTargetScroll + (wheel > 0 ? -1.0 : 1.0) * 18.0 * this.lastScale, 0.0, max);
-        return true;
-    }
-
-    private boolean isSettingShown(ravens4.module.setting.Setting s) {
-        if (s == null || !s.visible || s instanceof ravens4.module.setting.impl.DescriptionSetting) {
-            return false;
-        }
-        ravens4.module.setting.impl.GroupSetting grp = extractGroup(s);
-        if (grp != null && (!grp.visible || !grp.isOpened())) {
-            return false;
-        }
-        return true;
-    }
-
-    private static ravens4.module.setting.impl.GroupSetting extractGroup(ravens4.module.setting.Setting s) {
-        if (s instanceof ravens4.module.setting.impl.ButtonSetting) {
-            return ((ravens4.module.setting.impl.ButtonSetting) s).group;
-        }
-        if (s instanceof ravens4.module.setting.impl.SliderSetting) {
-            return ((ravens4.module.setting.impl.SliderSetting) s).groupSetting;
-        }
-        if (s instanceof ravens4.module.setting.impl.ColorSetting) {
-            return ((ravens4.module.setting.impl.ColorSetting) s).groupSetting;
-        }
-        if (s instanceof ravens4.module.setting.impl.TextSetting) {
-            return ((ravens4.module.setting.impl.TextSetting) s).group;
-        }
-        if (s instanceof ravens4.module.setting.impl.KeySetting) {
-            return ((ravens4.module.setting.impl.KeySetting) s).group;
-        }
-        return null;
-    }
-
-    void render(double drawX, double drawY, double panelW, int mouseX, int mouseY, float partialTicks, double scale) {
-        this.lastWidth = panelW;
-        this.lastScale = scale;
-
-        if (this.draggingSlider != null) {
-            if (keybinds.isMouseDown(0)) {
-                double dx = mouseX - this.dragStartMouseX;
-                double span = this.draggingSlider.getMax() - this.draggingSlider.getMin();
-                double unitPerPx = span / Math.max(1.0, panelW * 0.8);
-                double next = clampDouble(this.dragStartVal + dx * unitPerPx, this.draggingSlider.getMin(), this.draggingSlider.getMax());
-                this.draggingSlider.setValueWithEvent(next);
-                if (this.draggingSliderOwner != null) {
-                    this.draggingSliderOwner.guiUpdate();
-                }
-            } else {
-                this.draggingSlider = null;
-                this.draggingSliderOwner = null;
-            }
-        }
-
-        double targetBodyH = 0.0;
-        if (this.opened) {
-            for (int i = 0; i < this.cards.size(); i++) {
-                ModCard mc = this.cards.get(i);
-                targetBodyH += 34.0 * scale + 1.0 * scale;
-                if (!mc.expanded) continue;
-                mc.mod.guiUpdate();
-                for (ravens4.module.setting.Setting s : mc.mod.getSettings()) {
-                    if (!isSettingShown(s)) continue;
-                    targetBodyH += 18.0 * scale;
-                    if (s instanceof ravens4.module.setting.impl.SliderSetting) {
-                        ravens4.module.setting.impl.SliderSetting ss = (ravens4.module.setting.impl.SliderSetting) s;
-                        if (ss.isString && Boolean.TRUE.equals(this.modeAccordionOpen.get(s))) {
-                            String[] opts = ss.getOptions();
-                            if (opts != null) {
-                                targetBodyH += opts.length * 18.0 * scale;
-                            }
-                        }
-                    }
-                }
-                if (!(mc.mod instanceof RiseClickGuiModule)) {
-                    targetBodyH += 18.0 * scale;
-                }
-                targetBodyH += 2.0 * scale;
-            }
-            targetBodyH += 4.0 * scale;
-        }
-
-        this.contentH = targetBodyH;
-        this.expandAnim.run(this.opened ? Math.min(targetBodyH, this.maxBodyH) : 0.0);
-        double bodyH = this.expandAnim.value;
-        if (!this.opened) {
-            this.panelTargetScroll = 0.0;
-        }
-        double maxScroll = maxPanelScroll();
-        this.panelTargetScroll = clampDouble(this.panelTargetScroll, 0.0, maxScroll);
-        this.panelScrollAnim.run(this.panelTargetScroll);
-        double scrollY = this.panelScrollAnim.value;
-        double headerH = 22.0 * scale;
-
-        boolean headerHov = DrawUtil.hovered(drawX, drawY, panelW, headerH, mouseX, mouseY);
-        this.headerHoverAnim.run(headerHov ? 30.0 : 0.0);
-
-        Color first = activeTheme.firstColor();
-        Color bodyBg = new Color(
-                Math.min(255, Palette.BACK_MAIN.getRed() + first.getRed() / 26),
-                Math.min(255, Palette.BACK_MAIN.getGreen() + first.getGreen() / 26),
-                Math.min(255, Palette.BACK_MAIN.getBlue() + first.getBlue() / 26),
-                245
-        );
-
-        DrawUtil.roundedRectEdges(
-                drawX, drawY, panelW, headerH, 6.0 * scale,
-                Palette.withAlpha(Palette.BACK_SIDEBAR, 180),
-                true, true, !this.opened, !this.opened
-        );
-        int hhAlpha = clampInt((int) this.headerHoverAnim.value, 0, 255);
-        if (hhAlpha > 0) {
-            DrawUtil.roundedRectEdges(
-                    drawX, drawY, panelW, headerH, 6.0 * scale,
-                    new Color(255, 255, 255, hhAlpha),
-                    true, true, !this.opened, !this.opened
-            );
-        }
-
-        Color accent = activeTheme.accentColor();
-        String catTitle = this.category.displayName();
-        RiseFont.of((int) Math.round(16.0 * scale)).draw(catTitle, drawX + 8.0 * scale, drawY + 7.0 * scale, accent.getRGB());
-        String arrow = this.opened ? "\u25b2" : "\u25bc";
-        RiseFont.of((int) Math.round(12.0 * scale)).draw(arrow, drawX + panelW - 16.0 * scale, drawY + 7.0 * scale, Palette.TEXT_MUTED.getRGB());
-        String countText = "(" + this.cards.size() + ")";
-        RiseFont.of((int) Math.round(12.0 * scale)).drawRight(countText, drawX + panelW - 22.0 * scale, drawY + 8.0 * scale, Palette.TEXT_MUTED.getRGB());
-
-        if (bodyH <= 1.0) {
-            return;
-        }
-
-        if (this.opened) {
-            DrawUtil.rect(drawX, drawY + headerH - 4.0 * scale, panelW, 4.0 * scale, Palette.withAlpha(Palette.BACK_SIDEBAR, 180));
-        }
-        DrawUtil.roundedRectEdges(drawX, drawY + headerH, panelW, bodyH, 6.0 * scale, bodyBg, false, false, true, true);
-
-        DrawUtil.enableScissor(drawX, drawY + headerH, panelW, bodyH);
-
-        double curY = drawY + headerH + 3.0 * scale - scrollY;
-        RiseFont fMod = RiseFont.of((int) Math.round(13.0 * scale));
-        RiseFont fDesc = RiseFont.of((int) Math.round(9.0 * scale));
-        RiseFont fVal = RiseFont.of((int) Math.round(12.0 * scale));
-        RiseFont fValSmall = RiseFont.of((int) Math.round(11.0 * scale));
-
-        for (int i = 0; i < this.cards.size(); i++) {
-            ModCard mc = this.cards.get(i);
-            double rowH = 34.0 * scale;
-            boolean rowHov = DrawUtil.hovered(drawX + 6.0 * scale, curY, panelW - 12.0 * scale, rowH - 2.0 * scale, mouseX, mouseY);
-            if (rowHov) {
-                DrawUtil.roundedRect(drawX + 6.0 * scale, curY, panelW - 12.0 * scale, rowH - 2.0 * scale, 4.0 * scale, new Color(255, 255, 255, 15));
-            }
-            if (mc.mod.isEnabled()) {
-                DrawUtil.roundedRect(drawX + 6.0 * scale, curY, 2.0 * scale, rowH - 2.0 * scale, 1.0 * scale, accent);
-            }
-
-            double textX = drawX + 12.0 * scale;
-            double textY = curY + 4.0 * scale;
-            fMod.draw(mc.mod.getName(), textX, textY, mc.mod.isEnabled() ? accent.getRGB() : Palette.TEXT_BRIGHT.getRGB());
-
-            if (!mc.expanded) {
-                String catSub = "(" + SidebarCategory.fromModule(mc.mod).displayName() + ")";
-                RiseFont.of((int) Math.round(10.0 * scale)).draw(
-                        catSub,
-                        textX + fMod.width(mc.mod.getName()) + 4.0 * scale,
-                        textY + 1.0 * scale,
-                        Palette.TEXT_MUTED.getRGB()
-                );
-
-                String desc = Loc.moduleDescription(mc.mod);
-                float maxLineW = (float) (panelW - 24.0 * scale);
-                String[] words = desc.split(" ");
-                StringBuilder line1 = new StringBuilder();
-                StringBuilder line2 = new StringBuilder();
-                float wAcc = 0.0f;
-                boolean onSecond = false;
-                for (int w = 0; w < words.length; w++) {
-                    String word = words[w];
-                    float ww = fDesc.width(word + " ");
-                    if (!onSecond && wAcc + ww > maxLineW && line1.length() > 0) {
-                        onSecond = true;
-                        wAcc = 0.0f;
-                    }
-                    if (!onSecond) {
-                        line1.append(word).append(" ");
-                        wAcc += ww;
-                    } else if (wAcc + ww <= maxLineW) {
-                        line2.append(word).append(" ");
-                        wAcc += ww;
-                    } else {
-                        break;
-                    }
-                }
-                fDesc.draw(line1.toString().trim(), textX, textY + 11.0 * scale, Palette.TEXT_MUTED.getRGB());
-                if (line2.length() > 0) {
-                    fDesc.draw(line2.toString().trim(), textX, textY + 19.0 * scale, Palette.TEXT_MUTED.getRGB());
-                }
-            }
-
-            curY += rowH + 1.0 * scale;
-            if (!mc.expanded) continue;
-
-            for (ravens4.module.setting.Setting s : mc.mod.getSettings()) {
-                if (!isSettingShown(s)) continue;
-                double valRowH = 18.0 * scale;
-                boolean vHov = DrawUtil.hovered(drawX + 10.0 * scale, curY, panelW - 20.0 * scale, valRowH, mouseX, mouseY);
-                if (vHov) {
-                    DrawUtil.roundedRect(drawX + 10.0 * scale, curY, panelW - 20.0 * scale, valRowH - 2.0 * scale, 3.0 * scale, new Color(255, 255, 255, 10));
-                }
-
-                double vx = drawX + 14.0 * scale;
-                double vy = curY + 4.0 * scale;
-
-                if (s instanceof ravens4.module.setting.impl.ButtonSetting) {
-                    ravens4.module.setting.impl.ButtonSetting bs = (ravens4.module.setting.impl.ButtonSetting) s;
-                    fVal.draw(bs.getName(), vx, vy, Palette.TEXT_BRIGHT.getRGB());
-                    double boxX = drawX + panelW - 28.0 * scale;
-                    double boxY = curY + 3.0 * scale;
-                    DrawUtil.roundedRect(boxX, boxY, 12.0 * scale, 12.0 * scale, 3.0 * scale, Palette.withAlpha(Palette.BACK_SIDEBAR, 150));
-                    if (!bs.isMethodButton && bs.isToggled()) {
-                        DrawUtil.roundedRect(boxX + 2.0 * scale, boxY + 2.0 * scale, 8.0 * scale, 8.0 * scale, 2.0 * scale, accent);
-                    }
-                } else if (s instanceof ravens4.module.setting.impl.SliderSetting) {
-                    ravens4.module.setting.impl.SliderSetting ss = (ravens4.module.setting.impl.SliderSetting) s;
-                    if (ss.isString) {
-                        fVal.draw(ss.getName(), vx, vy, Palette.TEXT_BRIGHT.getRGB());
-                        String[] opts = ss.getOptions();
-                        String selOpt = (opts != null && opts.length > 0)
-                                ? opts[clampInt((int) Math.round(ss.getInput()), 0, opts.length - 1)]
-                                : "";
-                        fValSmall.drawRight(selOpt, drawX + panelW - 20.0 * scale, vy, accent.getRGB());
-                        boolean accOpen = Boolean.TRUE.equals(this.modeAccordionOpen.get(s));
-                        RiseFont.of((int) Math.round(10.0 * scale)).draw(
-                                accOpen ? "\u25b2" : "\u25bc",
-                                drawX + panelW - 16.0 * scale,
-                                vy,
-                                Palette.TEXT_MUTED.getRGB()
-                        );
-                    } else {
-                        fVal.draw(ss.getName(), vx, vy - 1.0 * scale, Palette.TEXT_BRIGHT.getRGB());
-                        double barX = drawX + 12.0 * scale;
-                        double barY = curY + valRowH - 5.5 * scale;
-                        double barW = panelW - 24.0 * scale;
-                        double barH = 2.0 * scale;
-                        DrawUtil.roundedRect(barX, barY, barW, barH, 1.5 * scale, Palette.withAlpha(Palette.BACK_SIDEBAR, 100));
-                        double ratio = (ss.getMax() <= ss.getMin())
-                                ? 0.0
-                                : clampDouble((ss.getInput() - ss.getMin()) / (ss.getMax() - ss.getMin()), 0.0, 1.0);
-                        if (ratio > 0.0) {
-                            DrawUtil.roundedRect(barX, barY, barW * ratio, barH, 1.5 * scale, accent);
-                        }
-                        String numTxt = String.valueOf(Math.round(ss.getInput() * 100.0) / 100.0);
-                        if (numTxt.endsWith(".0")) numTxt = numTxt.substring(0, numTxt.length() - 2);
-                        fValSmall.drawRight(numTxt, drawX + panelW - 14.0 * scale, vy - 1.5 * scale, Palette.TEXT_MUTED.getRGB());
-                    }
-                } else if (s instanceof ravens4.module.setting.impl.TextSetting) {
-                    ravens4.module.setting.impl.TextSetting ts = (ravens4.module.setting.impl.TextSetting) s;
-                    boolean foc = (this.focusedTextSetting == ts);
-                    fVal.draw(ts.getName() + ":", vx, vy, Palette.TEXT_BRIGHT.getRGB());
-                    String valDisp = ts.getText() + (foc && (client.time() / 400L) % 2L == 0L ? "|" : "");
-                    fValSmall.drawRight(valDisp.isEmpty() ? "..." : valDisp, drawX + panelW - 14.0 * scale, vy, foc ? accent.getRGB() : Palette.TEXT_SUB.getRGB());
-                } else if (s instanceof ravens4.module.setting.impl.ColorSetting) {
-                    ravens4.module.setting.impl.ColorSetting cs = (ravens4.module.setting.impl.ColorSetting) s;
-                    fVal.draw(cs.getName(), vx, vy, Palette.TEXT_BRIGHT.getRGB());
-                    Color c = new Color(cs.getRed(), cs.getGreen(), cs.getBlue(), 255);
-                    DrawUtil.roundedRect(drawX + panelW - 28.0 * scale, curY + 4.0 * scale, 14.0 * scale, 9.0 * scale, 2.5 * scale, c);
-                } else if (s instanceof ravens4.module.setting.impl.GroupSetting) {
-                    ravens4.module.setting.impl.GroupSetting gs = (ravens4.module.setting.impl.GroupSetting) s;
-                    fVal.draw(gs.getName() + (gs.isOpened() ? " \u25be" : " \u25b8"), vx, vy, accent.getRGB());
-                } else if (s instanceof ravens4.module.setting.impl.KeySetting) {
-                    ravens4.module.setting.impl.KeySetting ks = (ravens4.module.setting.impl.KeySetting) s;
-                    fVal.draw(ks.getName(), vx, vy, Palette.TEXT_BRIGHT.getRGB());
-                    String kStr = (this.listeningKeySetting == ks) ? "[...]" : KeyNameUtil.nameOf(ks.getKey());
-                    fValSmall.drawRight(kStr, drawX + panelW - 14.0 * scale, vy, accent.getRGB());
-                }
-
-                curY += valRowH;
-
-                if (s instanceof ravens4.module.setting.impl.SliderSetting) {
-                    ravens4.module.setting.impl.SliderSetting ss = (ravens4.module.setting.impl.SliderSetting) s;
-                    if (ss.isString && Boolean.TRUE.equals(this.modeAccordionOpen.get(s))) {
-                        String[] opts = ss.getOptions();
-                        if (opts != null) {
-                            int selIdx = clampInt((int) Math.round(ss.getInput()), 0, opts.length - 1);
-                            for (int oi = 0; oi < opts.length; oi++) {
-                                boolean optHov = DrawUtil.hovered(drawX + 16.0 * scale, curY, panelW - 32.0 * scale, valRowH, mouseX, mouseY);
-                                if (optHov) {
-                                    DrawUtil.roundedRect(drawX + 16.0 * scale, curY, panelW - 32.0 * scale, valRowH - 2.0 * scale, 3.0 * scale, new Color(255, 255, 255, 12));
-                                }
-                                boolean isSel = (oi == selIdx);
-                                if (isSel) {
-                                    DrawUtil.roundedRect(drawX + 16.0 * scale, curY, 2.0 * scale, valRowH - 2.0 * scale, 1.0 * scale, accent);
-                                }
-                                fValSmall.draw(opts[oi], drawX + 22.0 * scale, curY + 5.0 * scale, isSel ? accent.getRGB() : Palette.TEXT_BRIGHT.getRGB());
-                                curY += valRowH;
-                            }
-                        }
-                    }
-                }
-            }
-            if (!(mc.mod instanceof RiseClickGuiModule)) {
-                double valRowH = 18.0 * scale;
-                boolean bHov = DrawUtil.hovered(drawX + 10.0 * scale, curY, panelW - 20.0 * scale, valRowH, mouseX, mouseY);
-                if (bHov) {
-                    DrawUtil.roundedRect(drawX + 10.0 * scale, curY, panelW - 20.0 * scale, valRowH - 2.0 * scale, 3.0 * scale, new Color(255, 255, 255, 10));
-                }
-                fVal.draw("Keybind", drawX + 14.0 * scale, curY + 4.0 * scale, Palette.TEXT_BRIGHT.getRGB());
-                String mbStr = (this.listeningModuleBind == mc.mod) ? "[...]" : KeyNameUtil.nameOf(mc.mod.getKeycode());
-                fValSmall.drawRight(mbStr, drawX + panelW - 14.0 * scale, curY + 4.0 * scale, accent.getRGB());
-                curY += valRowH;
-            }
-            curY += 2.0 * scale;
-        }
-
-        DrawUtil.disableScissor();
-
-        if (maxScroll > 0.5 && bodyH > 8.0 * scale) {
-            double trackH = bodyH - 6.0 * scale;
-            double barH = Math.max(12.0 * scale, trackH * (this.maxBodyH / Math.max(this.maxBodyH, this.contentH)));
-            double barY = drawY + headerH + 3.0 * scale + (trackH - barH) * (scrollY / maxScroll);
-            DrawUtil.roundedRect(drawX + panelW - 4.0 * scale, barY, 2.0 * scale, barH, 1.0 * scale, Palette.withAlpha(accent, 160));
-        }
-    }
-
-    void renderBloom(double drawX, double drawY, double scale) {
-        Color first = activeTheme.firstColor();
-        RiseFont.of((int) Math.round(16.0 * scale)).draw(
-                this.category.displayName(),
-                drawX + 8.0 * scale,
-                drawY + 7.0 * scale,
-                Palette.rgbWithAlpha(first, 200)
-        );
-        if (!this.opened || this.expandAnim.value <= 1.0) return;
-
-        double bodyTop = drawY + 22.0 * scale;
-        double bodyBottom = bodyTop + this.expandAnim.value;
-        double curY = bodyTop + 3.0 * scale - this.panelScrollAnim.value;
-        RiseFont fMod = RiseFont.of((int) Math.round(13.0 * scale));
-        for (int i = 0; i < this.cards.size(); i++) {
-            ModCard mc = this.cards.get(i);
-            if (mc.mod.isEnabled() && curY >= bodyTop && curY + 32.0 * scale <= bodyBottom) {
-                DrawUtil.roundedRect(drawX + 6.0 * scale, curY, 2.0 * scale, 32.0 * scale, 1.0 * scale, Palette.withAlpha(first, 150));
-                fMod.draw(mc.mod.getName(), drawX + 12.0 * scale, curY + 4.0 * scale, Palette.rgbWithAlpha(first, 120));
-            }
-            curY += 35.0 * scale;
-            if (!mc.expanded) continue;
-            for (ravens4.module.setting.Setting s : mc.mod.getSettings()) {
-                if (!isSettingShown(s)) continue;
-                curY += 18.0 * scale;
-                if (s instanceof ravens4.module.setting.impl.SliderSetting) {
-                    ravens4.module.setting.impl.SliderSetting ss = (ravens4.module.setting.impl.SliderSetting) s;
-                    if (ss.isString && Boolean.TRUE.equals(this.modeAccordionOpen.get(s)) && ss.getOptions() != null) {
-                        curY += ss.getOptions().length * 18.0 * scale;
-                    }
-                }
-            }
-            if (!(mc.mod instanceof RiseClickGuiModule)) {
-                curY += 18.0 * scale;
-            }
-            curY += 2.0 * scale;
-        }
-    }
-
-    void mouseClicked(double drawX, double drawY, int mouseX, int mouseY, int button) {
-        double scale = this.lastScale;
-        double headerH = 22.0 * scale;
-        double rowH = 34.0 * scale;
-        double valRowH = 18.0 * scale;
-
-        if (this.listeningKeySetting != null && button >= 2) {
-            this.listeningKeySetting.setKey(1000 + button);
-            this.listeningKeySetting = null;
-            keyToggleCooldown.reset();
-            syncClickGuiKeybind();
-            return;
-        }
-        if (this.listeningModuleBind != null && button >= 2) {
-            this.listeningModuleBind.setBind(1000 + button);
-            this.listeningModuleBind = null;
-            keyToggleCooldown.reset();
-            return;
-        }
-
-        this.focusedTextSetting = null;
-        this.listeningKeySetting = null;
-        this.listeningModuleBind = null;
-
-        if (DrawUtil.hovered(drawX, drawY, this.lastWidth, headerH, mouseX, mouseY)) {
-            if (button == 1) {
-                this.opened = !this.opened;
-            }
-            return;
-        }
-
-        if (!this.opened || this.expandAnim.value <= 1.0) return;
-
-        double curY = drawY + headerH + 3.0 * scale - this.panelScrollAnim.value;
-        for (int i = 0; i < this.cards.size(); i++) {
-            ModCard mc = this.cards.get(i);
-            if (DrawUtil.hovered(drawX + 6.0 * scale, curY, this.lastWidth - 12.0 * scale, rowH, mouseX, mouseY)) {
-                if (button == 0) {
-                    mc.mod.toggle();
-                } else if (button == 1) {
-                    mc.mod.guiUpdate();
-                    mc.expanded = !mc.expanded;
-                } else if (button == 2) {
-                    bindingTargetCard = (bindingTargetCard == mc) ? null : mc;
-                }
-                return;
-            }
-            curY += rowH + 1.0 * scale;
-            if (!mc.expanded) continue;
-
-            for (ravens4.module.setting.Setting s : mc.mod.getSettings()) {
-                if (!isSettingShown(s)) continue;
-                if (DrawUtil.hovered(drawX + 10.0 * scale, curY, this.lastWidth - 20.0 * scale, valRowH, mouseX, mouseY)) {
-                    handleSettingClick(mc.mod, s, mouseX, button);
-                    return;
-                }
-                curY += valRowH;
-
-                if (s instanceof ravens4.module.setting.impl.SliderSetting) {
-                    ravens4.module.setting.impl.SliderSetting ss = (ravens4.module.setting.impl.SliderSetting) s;
-                    if (ss.isString && Boolean.TRUE.equals(this.modeAccordionOpen.get(s)) && ss.getOptions() != null) {
-                        String[] opts = ss.getOptions();
-                        for (int oi = 0; oi < opts.length; oi++) {
-                            if (DrawUtil.hovered(drawX + 16.0 * scale, curY, this.lastWidth - 32.0 * scale, valRowH, mouseX, mouseY)) {
-                                if (button == 0) {
-                                    ss.setValueWithEvent(oi);
-                                    mc.mod.guiUpdate();
-                                }
-                                return;
-                            }
-                            curY += valRowH;
-                        }
-                    }
-                }
-            }
-            if (!(mc.mod instanceof RiseClickGuiModule)) {
-                if (DrawUtil.hovered(drawX + 10.0 * scale, curY, this.lastWidth - 20.0 * scale, valRowH, mouseX, mouseY)) {
-                    if (button == 0) {
-                        this.listeningModuleBind = mc.mod;
-                    } else if (button == 1) {
-                        mc.mod.setBind(0);
-                    }
-                    return;
-                }
-                curY += valRowH;
-            }
-            curY += 2.0 * scale;
-        }
-    }
-
-    private void handleSettingClick(ravens4.module.Module owner, ravens4.module.setting.Setting s, int mouseX, int button) {
-        if (s instanceof ravens4.module.setting.impl.ButtonSetting && button == 0) {
-            ravens4.module.setting.impl.ButtonSetting bs = (ravens4.module.setting.impl.ButtonSetting) s;
-            if (bs.isMethodButton) bs.runMethod();
-            else bs.toggle();
-            owner.guiUpdate();
-        } else if (s instanceof ravens4.module.setting.impl.SliderSetting) {
-            ravens4.module.setting.impl.SliderSetting ss = (ravens4.module.setting.impl.SliderSetting) s;
-            if (ss.isString) {
-                boolean cur = Boolean.TRUE.equals(this.modeAccordionOpen.get(s));
-                this.modeAccordionOpen.put(s, Boolean.valueOf(!cur));
-            } else if (button == 0) {
-                this.draggingSlider = ss;
-                this.draggingSliderOwner = owner;
-                this.dragStartMouseX = mouseX;
-                this.dragStartVal = ss.getInput();
-            }
-        } else if (s instanceof ravens4.module.setting.impl.TextSetting && button == 0) {
-            this.focusedTextSetting = (ravens4.module.setting.impl.TextSetting) s;
-        } else if (s instanceof ravens4.module.setting.impl.ColorSetting && button == 0) {
-            ravens4.module.setting.impl.ColorSetting cs = (ravens4.module.setting.impl.ColorSetting) s;
-            float nextHue = (cs.getHue() + 30.0f) % 360.0f;
-            cs.setFromHSB(nextHue, Math.max(0.6f, cs.getSaturation()), Math.max(0.8f, cs.getBrightness()));
-        } else if (s instanceof ravens4.module.setting.impl.GroupSetting) {
-            ravens4.module.setting.impl.GroupSetting gs = (ravens4.module.setting.impl.GroupSetting) s;
-            gs.setOpened(!gs.isOpened());
-        } else if (s instanceof ravens4.module.setting.impl.KeySetting && button == 0) {
-            this.listeningKeySetting = (ravens4.module.setting.impl.KeySetting) s;
-        }
-    }
-
-    void mouseReleased() {
-        this.draggingSlider = null;
-        this.draggingSliderOwner = null;
-    }
-
-    void keyTyped(char typedChar, int keyCode) {
-        if (this.listeningKeySetting != null) {
-            if (keyCode == 1 || keyCode == 14 || keyCode == 211) {
-                this.listeningKeySetting.setKey(0);
-            } else if (keyCode > 0) {
-                this.listeningKeySetting.setKey(keyCode);
-            }
-            this.listeningKeySetting = null;
-            keyToggleCooldown.reset();
-            syncClickGuiKeybind();
-            return;
-        }
-        if (this.listeningModuleBind != null) {
-            if (keyCode == 1 || keyCode == 14 || keyCode == 211) {
-                this.listeningModuleBind.setBind(0);
-            } else if (keyCode > 0) {
-                this.listeningModuleBind.setBind(keyCode);
-            }
-            this.listeningModuleBind = null;
-            keyToggleCooldown.reset();
-            return;
-        }
-        if (this.focusedTextSetting != null) {
-            if (keyCode == 28) {
-                this.focusedTextSetting.submit();
-                this.focusedTextSetting = null;
-                return;
-            }
-            String cur = this.focusedTextSetting.getText() == null ? "" : this.focusedTextSetting.getText();
-            if (keyCode == 14) {
-                if (!cur.isEmpty()) {
-                    this.focusedTextSetting.setText(cur.substring(0, cur.length() - 1));
-                }
-            } else if (typedChar >= 32 && typedChar != 127) {
-                this.focusedTextSetting.setText(cur + typedChar);
-            }
-        }
-    }
-
-    boolean hasActiveInput() {
-        return this.focusedTextSetting != null || this.listeningKeySetting != null || this.listeningModuleBind != null;
-    }
-
-    boolean unfocusInput() {
-        boolean changed = false;
-        if (this.focusedTextSetting != null) {
-            this.focusedTextSetting = null;
-            changed = true;
-        }
-        if (this.listeningKeySetting != null) {
-            this.listeningKeySetting.setKey(0);
-            this.listeningKeySetting = null;
-            syncClickGuiKeybind();
-            changed = true;
-        }
-        if (this.listeningModuleBind != null) {
-            this.listeningModuleBind.setBind(0);
-            this.listeningModuleBind = null;
-            changed = true;
-        }
-        return changed;
-    }
-}
-
-static final class DropdownGui {
-    private final Map<SidebarCategory, DropdownPanel> panels = new HashMap<SidebarCategory, DropdownPanel>();
-    private final List<SidebarCategory> panelOrder = new ArrayList<SidebarCategory>();
-    private double scrollOffset = 0.0;
-    private double targetScroll = 0.0;
-    private final Animation scrollAnim = new Animation(Easing.EASE_OUT_EXPO, 300L);
-    private DropdownPanel draggingPanel = null;
-    private double dragOffsetX = 0.0;
-    private double dragOffsetY = 0.0;
-    private double scale = 0.8;
-    private boolean initialized = false;
-
-    void markDirty() {
-        this.panels.clear();
-        this.panelOrder.clear();
-        this.initialized = false;
-    }
-
-    private double panelWidth() {
-        return 129.0 * this.scale;
-    }
-
-    private double panelGap() {
-        return 10.0 * this.scale;
-    }
-
-    void initGui() {
-        if (!this.initialized) {
-            buildPanels();
-            this.initialized = true;
-            layoutPanelsGrid();
-        }
-        this.scrollOffset = 0.0;
-        this.targetScroll = 0.0;
-        this.scrollAnim.setValue(0.0);
-    }
-
-    void onGuiClosed() {
-        this.draggingPanel = null;
-        this.scrollOffset = 0.0;
-        this.targetScroll = 0.0;
-        this.scrollAnim.setValue(0.0);
-        for (DropdownPanel p : this.panels.values()) {
-            p.mouseReleased();
-        }
-    }
-
-    private void buildPanels() {
-        this.panelOrder.clear();
-        this.panelOrder.add(SidebarCategory.COMBAT);
-        this.panelOrder.add(SidebarCategory.GHOST);
-        this.panelOrder.add(SidebarCategory.MOVEMENT);
-        this.panelOrder.add(SidebarCategory.RENDER);
-        this.panelOrder.add(SidebarCategory.PLAYER);
-        this.panelOrder.add(SidebarCategory.EXPLOIT);
-
-        List<ravens4.module.Module> allMods = getAllClientModules();
-        for (int i = 0; i < this.panelOrder.size(); i++) {
-            SidebarCategory cat = this.panelOrder.get(i);
-            List<ModCard> catCards = new ArrayList<ModCard>();
-            for (int m = 0; m < allMods.size(); m++) {
-                ravens4.module.Module mod = allMods.get(m);
-                if (cat.matchesModule(mod)) {
-                    catCards.add(new ModCard(mod));
-                }
-            }
-            Collections.sort(catCards, new Comparator<ModCard>() {
-                public int compare(ModCard a, ModCard b) {
-                    return a.mod.getName().compareToIgnoreCase(b.mod.getName());
-                }
-            });
-            this.panels.put(cat, new DropdownPanel(cat, catCards));
-        }
-    }
-
-    private void layoutPanelsGrid() {
-        double startX = 20.0;
-        double startY = 20.0;
-        int col = 0;
-        int row = 0;
-        for (int i = 0; i < this.panelOrder.size(); i++) {
-            DropdownPanel p = this.panels.get(this.panelOrder.get(i));
-            if (p == null) continue;
-            double px = startX + col * (panelWidth() + panelGap());
-            double py = startY + row * 28.0;
-            p.setPosition(px, py);
-            col++;
-            if (col >= 3) {
-                col = 0;
-                row++;
-            }
-        }
-    }
-
-    private void setZoom(double nextScale) {
-        this.scale = clampDouble(nextScale, 0.5, 1.5);
-        layoutPanelsGrid();
-    }
-
-    void drawGui(final int mouseX, final int mouseY, final float partialTicks, int wheel, boolean shadersOn) {
-        int[] disp = client.getDisplaySize();
-        final int screenW = disp[0];
-        final int screenH = disp[1];
-
-        DrawUtil.rect(0.0, 0.0, screenW, screenH, new Color(0, 0, 0, 100));
-
-        boolean anyOpened = false;
-        for (DropdownPanel p : this.panels.values()) {
-            p.maxBodyH = Math.max(100.0 * this.scale, screenH - p.y - 22.0 * this.scale - 16.0);
-            if (p.opened) {
-                anyOpened = true;
-            }
-        }
-
-        if (wheel != 0) {
-            for (int i = 0; i < this.panelOrder.size(); i++) {
-                DropdownPanel p = this.panels.get(this.panelOrder.get(i));
-                if (p != null && p.tryScroll(p.x, p.y - this.scrollOffset, panelWidth(), mouseX, mouseY, wheel)) {
-                    wheel = 0;
-                    break;
-                }
-            }
-        }
-
-        if (anyOpened) {
-            if (wheel != 0) {
-                double delta = (wheel > 0 ? -1.0 : 1.0) * 15.0;
-                this.targetScroll += delta;
-                double maxScroll = computeMaxScroll(screenH);
-                this.targetScroll = maxScroll <= 0.0 ? 0.0 : clampDouble(this.targetScroll, 0.0, maxScroll);
-            }
-        } else {
-            this.targetScroll = 0.0;
-            this.scrollOffset = 0.0;
-            this.scrollAnim.setValue(0.0);
-        }
-
-        this.scrollAnim.run(this.targetScroll);
-        this.scrollOffset = this.scrollAnim.value;
-
-        if (this.draggingPanel != null) {
-            this.draggingPanel.setPosition(mouseX + this.dragOffsetX, mouseY + this.dragOffsetY + this.scrollOffset);
-        }
-
-        final double pw = panelWidth();
-        final double sc = this.scale;
-        final double curScroll = this.scrollOffset;
-
-        if (shadersOn) {
-            ShaderPipeline.addBlur(new Runnable() {
-                public void run() {
-                    for (int i = 0; i < panelOrder.size(); i++) {
-                        DropdownPanel p = panels.get(panelOrder.get(i));
-                        if (p == null) continue;
-                        double dx = p.x;
-                        double dy = p.y - curScroll;
-                        if (dy + p.totalHeight() < 0.0 || dy > screenH) continue;
-                        DrawUtil.roundedRectEdges(dx, dy, pw, 22.0 * sc, 6.0 * sc, Palette.BACK_SIDEBAR, true, true, !p.opened, !p.opened);
-                        if (p.opened && p.expandAnim.value > 1.0) {
-                            DrawUtil.roundedRectEdges(dx, dy + 22.0 * sc, pw, p.expandAnim.value, 6.0 * sc, Palette.BACK_MAIN, false, false, true, true);
-                        }
-                    }
-                }
-            });
-
-            ShaderPipeline.addBloom(new Runnable() {
-                public void run() {
-                    for (int i = 0; i < panelOrder.size(); i++) {
-                        DropdownPanel p = panels.get(panelOrder.get(i));
-                        if (p == null) continue;
-                        double dx = p.x;
-                        double dy = p.y - curScroll;
-                        if (dy + p.totalHeight() < 0.0 || dy > screenH) continue;
-                        p.renderBloom(dx, dy, sc);
-                    }
-                }
-            });
-        }
-
-        ShaderPipeline.addNormal(1, new Runnable() {
-            public void run() {
-                for (int i = 0; i < panelOrder.size(); i++) {
-                    DropdownPanel p = panels.get(panelOrder.get(i));
-                    if (p == null) continue;
-                    double dx = p.x;
-                    double dy = p.y - curScroll;
-                    if (dy + p.totalHeight() < 0.0 || dy > screenH) continue;
-                    p.render(dx, dy, pw, mouseX, mouseY, partialTicks, sc);
-                }
-            }
-        });
-    }
-
-    private double computeMaxScroll(int screenH) {
-        double maxY = 0.0;
-        double minY = Double.MAX_VALUE;
-        for (DropdownPanel p : this.panels.values()) {
-            if (p.y < minY) minY = p.y;
-            double bottom = p.y + p.totalHeight();
-            if (bottom > maxY) maxY = bottom;
-        }
-        double span = maxY - minY + 40.0;
-        return Math.max(0.0, span - screenH);
-    }
-
-    void mouseClicked(int mouseX, int mouseY, int button) {
-        double pw = panelWidth();
-        for (int i = 0; i < this.panelOrder.size(); i++) {
-            DropdownPanel p = this.panels.get(this.panelOrder.get(i));
-            if (p == null) continue;
-            double dx = p.x;
-            double dy = p.y - this.scrollOffset;
-            if (DrawUtil.hovered(dx, dy, pw, 22.0 * this.scale, mouseX, mouseY) && KeyNameUtil.isShiftDown() && button == 0) {
-                this.draggingPanel = p;
-                this.dragOffsetX = dx - mouseX;
-                this.dragOffsetY = dy - mouseY;
-                return;
-            }
-            if (DrawUtil.hovered(dx, dy, pw, p.totalHeight(), mouseX, mouseY)) {
-                p.mouseClicked(dx, dy, mouseX, mouseY, button);
-                return;
-            }
-        }
-        unfocusAnyText();
-    }
-
-    void mouseReleased(int mouseX, int mouseY, int button) {
-        this.draggingPanel = null;
-        for (DropdownPanel p : this.panels.values()) {
-            p.mouseReleased();
-        }
-    }
-
-    void keyTyped(char typedChar, int keyCode) {
-        if (KeyNameUtil.isCtrlDown() && !hasActiveTextInput()) {
-            if (keyCode == 13 || keyCode == 78) {
-                setZoom(this.scale + 0.1);
-                return;
-            }
-            if (keyCode == 12 || keyCode == 74) {
-                setZoom(this.scale - 0.1);
-                return;
-            }
-            if (keyCode == 11) {
-                setZoom(0.8);
-                return;
-            }
-        }
-        for (DropdownPanel p : this.panels.values()) {
-            p.keyTyped(typedChar, keyCode);
-        }
-    }
-
-    boolean hasActiveTextInput() {
-        for (DropdownPanel p : this.panels.values()) {
-            if (p.hasActiveInput()) return true;
-        }
-        return false;
-    }
-
-    boolean unfocusAnyText() {
-        boolean u = false;
-        for (DropdownPanel p : this.panels.values()) {
-            if (p.unfocusInput()) u = true;
-        }
-        return u;
     }
 }
 

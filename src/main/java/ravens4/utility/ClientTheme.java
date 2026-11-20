@@ -34,6 +34,26 @@ public final class ClientTheme {
         return Interface.themeAccentRgb(position);
     }
 
+    /**
+     * Colour of the selected theme at a moment of its animation (RGB, no alpha): rainbow themes cycle through the
+     * hues, every other theme blends between its two colours. {@code phase} 0..1 shifts the animation, so 0 and 0.5
+     * give the opposite ends of a flowing gradient.
+     */
+    public static int getAnimatedColor(long now, float phase) {
+        int index = getSelectedIndex();
+        float period = 4000.0f;
+        float time = ((now + (long) (phase * period)) % (long) period) / period;
+        if (Interface.themeIsRainbow(index)) {
+            return java.awt.Color.HSBtoRGB(time, 1.0f, 1.0f) & 0xFFFFFF;
+        }
+        int[] rgb = Interface.themeRgb(index);
+        float wave = time <= 0.5f ? time * 2.0f : 2.0f - time * 2.0f;
+        int r = (int) (((rgb[0] >> 16) & 0xFF) * (1.0f - wave) + ((rgb[1] >> 16) & 0xFF) * wave);
+        int g = (int) (((rgb[0] >> 8) & 0xFF) * (1.0f - wave) + ((rgb[1] >> 8) & 0xFF) * wave);
+        int b = (int) ((rgb[0] & 0xFF) * (1.0f - wave) + (rgb[1] & 0xFF) * wave);
+        return (r << 16) | (g << 8) | b;
+    }
+
     /** Picks a theme (click in the Theme category) and sends it to the render modules. */
     public static void select(int index) {
         Interface.setActiveThemeIndex(index);
