@@ -5337,11 +5337,12 @@ static final class ScrollHandler {
 
     void update(int wheelDelta, boolean active) {
         double clampedMin = Math.min(0.0, this.minScroll);
-        if (active && wheelDelta != 0 && this.wheelTimer.finished(20L)) {
-            float f = (float) (wheelDelta * (this.reverse ? -1 : 1));
-            double bounce = 30.0;
+        if (active && wheelDelta != 0) {
+            // one fixed step per wheel notch (several notches in one frame add up), clamped to the content
+            int notches = Math.max(1, Math.abs(wheelDelta) / 120);
+            double step = (wheelDelta > 0 ? 1.0 : -1.0) * (this.reverse ? -1.0 : 1.0) * 28.0 * notches;
             this.wheelActive = true;
-            this.target = Math.min(Math.max(this.target + (double) (f / 2.0f), clampedMin - bounce), bounce);
+            this.target = Math.min(Math.max(this.target + step, clampedMin), 0.0);
             this.wheelTimer.reset();
         } else if (this.wheelTimer.finished(50L)) {
             this.wheelActive = false;
@@ -5351,7 +5352,7 @@ static final class ScrollHandler {
 
         long elapsed = Math.min(this.lerpTimer.elapsed(), 200L);
         for (long i = 0; i < elapsed; i++) {
-            this.scroll = lerpDouble(this.scroll, this.target, 0.01);
+            this.scroll = lerpDouble(this.scroll, this.target, 0.015);
         }
         this.scrolling = Math.abs(this.scroll - this.target) > 0.5;
         this.lerpTimer.reset();
@@ -5370,7 +5371,7 @@ static final class ScrollHandler {
             return;
         }
         double barY = y + maxScrollbarHeight * ratio - barHeight * ratio;
-        DrawUtil.roundedRect(x, barY, 1.0, barHeight, 0.5, new Color(255, 255, 255, 60));
+        DrawUtil.roundedRect(x - 1.0, barY, 2.0, barHeight, 1.0, new Color(255, 255, 255, 110));
     }
 
     void setMaxScrollRange(double minScrollVal) {
