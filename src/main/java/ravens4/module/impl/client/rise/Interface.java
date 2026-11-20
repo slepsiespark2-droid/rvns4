@@ -5335,15 +5335,23 @@ static final class ScrollHandler {
     boolean scrolling = false;
     boolean reverse = false;
 
+    /** One fixed step per wheel notch (several notches in one frame add up), clamped to the content. */
+    void addWheel(int wheelDelta) {
+        if (wheelDelta == 0) {
+            return;
+        }
+        double clampedMin = Math.min(0.0, this.minScroll);
+        int notches = Math.max(1, Math.abs(wheelDelta) / 120);
+        double step = (wheelDelta > 0 ? 1.0 : -1.0) * (this.reverse ? -1.0 : 1.0) * 28.0 * notches;
+        this.wheelActive = true;
+        this.target = Math.min(Math.max(this.target + step, clampedMin), 0.0);
+        this.wheelTimer.reset();
+    }
+
     void update(int wheelDelta, boolean active) {
         double clampedMin = Math.min(0.0, this.minScroll);
         if (active && wheelDelta != 0) {
-            // one fixed step per wheel notch (several notches in one frame add up), clamped to the content
-            int notches = Math.max(1, Math.abs(wheelDelta) / 120);
-            double step = (wheelDelta > 0 ? 1.0 : -1.0) * (this.reverse ? -1.0 : 1.0) * 28.0 * notches;
-            this.wheelActive = true;
-            this.target = Math.min(Math.max(this.target + step, clampedMin), 0.0);
-            this.wheelTimer.reset();
+            addWheel(wheelDelta);
         } else if (this.wheelTimer.finished(50L)) {
             this.wheelActive = false;
             this.target = Math.min(Math.max(this.target, clampedMin), 0.0);
@@ -6767,6 +6775,11 @@ static final class Sidebar {
 static abstract class GuiPage {
     abstract void render(int mouseX, int mouseY, float partialTicks, int wheel);
 
+    /** The page's scroll state, so the GUI can feed it the mouse wheel; null if the page does not scroll. */
+    ScrollHandler scrollHandler() {
+        return null;
+    }
+
     void keyTyped(char typedChar, int keyCode) {
     }
 
@@ -6810,6 +6823,11 @@ static final class SearchPage extends GuiPage {
     );
     private final StopWatch fadeWatch = new StopWatch();
     final ScrollHandler scroll = new ScrollHandler();
+
+    @Override
+    ScrollHandler scrollHandler() {
+        return this.scroll;
+    }
     List<ModCard> filteredCards = new ArrayList<ModCard>();
     private double headerAlpha = 255.0;
     private boolean typedSinceOpen = false;
@@ -6961,6 +6979,11 @@ static final class SearchPage extends GuiPage {
 static final class CategoryPage extends GuiPage {
     final SidebarCategory category;
     final ScrollHandler scroll = new ScrollHandler();
+
+    @Override
+    ScrollHandler scrollHandler() {
+        return this.scroll;
+    }
     final List<ModCard> cards = new ArrayList<ModCard>();
 
     CategoryPage(SidebarCategory category) {
@@ -7163,6 +7186,11 @@ static final class ThemesPage extends GuiPage {
     private List<ThemeCard> visibleThemes = new ArrayList<ThemeCard>();
     private final List<ColorFilterSelector> selectors = new ArrayList<ColorFilterSelector>();
     private final ScrollHandler scroll = new ScrollHandler();
+
+    @Override
+    ScrollHandler scrollHandler() {
+        return this.scroll;
+    }
     private ColorFilterSelector activeSelector = null;
 
     ThemesPage() {
@@ -7373,6 +7401,11 @@ static final class ConfigTile {
 static final class ConfigsPage extends GuiPage {
     private static final int GAP = 10;
     private final ScrollHandler pageScroll = new ScrollHandler();
+
+    @Override
+    ScrollHandler scrollHandler() {
+        return this.pageScroll;
+    }
     private final List<ConfigTile> configTiles = new ArrayList<ConfigTile>();
 
     @Override
@@ -7458,6 +7491,11 @@ static final class ConfigsPage extends GuiPage {
 static final class ScriptsPage extends GuiPage {
     private static final int GAP = 10;
     private final ScrollHandler pageScroll = new ScrollHandler();
+
+    @Override
+    ScrollHandler scrollHandler() {
+        return this.pageScroll;
+    }
     private final List<ModCard> scriptCards = new ArrayList<ModCard>();
 
     private static boolean isPinnedManager(ravens4.module.Module mod) {
@@ -7630,6 +7668,11 @@ static final class LanguageCard {
 static final class LanguagePage extends GuiPage {
     private final List<LanguageCard> items = new ArrayList<LanguageCard>();
     private final ScrollHandler scroll = new ScrollHandler();
+
+    @Override
+    ScrollHandler scrollHandler() {
+        return this.scroll;
+    }
 
     LanguagePage() {
         for (RiseLang l : RiseLang.values()) {
@@ -7897,6 +7940,14 @@ static final class ModernGui {
             });
         }
 
+        if (openingOrOpen && wheel != 0 && this.currentPage != null
+                && DrawUtil.hovered(this.position.x, this.position.y, this.size.x, this.size.y, mouseX, mouseY)) {
+            ScrollHandler pageScrollHandler = this.currentPage.scrollHandler();
+            if (pageScrollHandler != null) {
+                pageScrollHandler.addWheel(wheel);
+            }
+        }
+
         ShaderPipeline.addNormal(1, new Runnable() {
             public void run() {
                 gl.push();
@@ -7914,7 +7965,7 @@ static final class ModernGui {
                 reapplyGuiScissor();
 
                 if (renderedPage != null) {
-                    renderedPage.render(mouseX, mouseY, partialTicks, openingOrOpen ? wheel : 0);
+                    renderedPage.render(mouseX, mouseY, partialTicks, 0);
                 }
 
                 if (switchElapsed <= switchDuration * 2L) {
