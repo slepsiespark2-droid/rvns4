@@ -415,11 +415,10 @@ public void onGuiUpdate(String guiName, boolean opened) {
 static void ensureModulesCreated() {
     if (interfaceModule == null) {
         interfaceModule = new RiseInterfaceModule();
-        String savedEnabled = config.get("rise_interface_enabled");
-        if (savedEnabled == null || "true".equalsIgnoreCase(savedEnabled.trim())) {
-            interfaceModule.setEnabled(true);
+        // the Interface HUD now lives in HUD.java as its DLayout3 mode: HUD takes over its settings
+        if (ravens4.module.ModuleManager.hud != null) {
+            ravens4.module.ModuleManager.hud.adoptDLayout3Settings(interfaceModule.getSettings());
         }
-        interfaceModule.guiUpdate();
     }
     if (clickGuiModule == null) {
         clickGuiModule = new RiseClickGuiModule();
@@ -473,10 +472,7 @@ static void registerRenderModules() {
     }
     List<ravens4.module.Module> list = mm.getModules();
     addRenderModIfAbsent(mm, list, clickGuiModule);
-    addRenderModIfAbsent(mm, list, interfaceModule);
     addRenderModIfAbsent(mm, list, targetInfoModule);
-    addRenderModIfAbsent(mm, list, fpsCounterModule);
-    addRenderModIfAbsent(mm, list, bpsCounterModule);
     addRenderModIfAbsent(mm, list, notificationsModule);
     Collections.sort(list, new Comparator<ravens4.module.Module>() {
         public int compare(ravens4.module.Module a, ravens4.module.Module b) {
@@ -495,10 +491,7 @@ static void unregisterRenderModules() {
     ravens4.module.ModuleManager mm = ravens4.Raven.getModuleManager();
     if (mm != null) {
         removeRenderMod(mm, clickGuiModule);
-        removeRenderMod(mm, interfaceModule);
         removeRenderMod(mm, targetInfoModule);
-        removeRenderMod(mm, fpsCounterModule);
-        removeRenderMod(mm, bpsCounterModule);
         removeRenderMod(mm, notificationsModule);
     }
     reloadRenderCategoryInRavenGui();
@@ -834,6 +827,13 @@ static int takePendingWheel() {
     return value;
 }
 
+/** Lets HUD.java work out which DLayout3 settings are currently relevant. */
+public static void computeDLayout3Visibility() {
+    if (interfaceModule != null) {
+        interfaceModule.computeVisibility();
+    }
+}
+
 static void loadPersistedState() {
     try {
         String savedTheme = config.get("rise_theme");
@@ -861,9 +861,6 @@ static void savePersistedState() {
         }
         if (activeLang != null) {
             config.set("rise_lang", activeLang.code);
-        }
-        if (interfaceModule != null) {
-            config.set("rise_interface_enabled", String.valueOf(interfaceModule.isEnabled()));
         }
         if (targetInfoModule != null) {
             targetInfoModule.saveConfig();
@@ -2599,6 +2596,10 @@ static final class RiseClickGuiModule extends ravens4.module.Module {
 }
 
 static final class RiseInterfaceModule extends ravens4.module.Module {
+    final ravens4.module.setting.impl.ButtonSetting fpsCounter;
+    final ravens4.module.setting.impl.ButtonSetting fpsTitle;
+    final ravens4.module.setting.impl.ButtonSetting bpsCounter;
+    final ravens4.module.setting.impl.ButtonSetting bpsTitle;
     static final String[] MODULES_TO_SHOW = new String[]{"All", "Exclude render", "Only bound"};
     static final String[] INFO_TYPES = new String[]{"Rise", "Traditional"};
 
@@ -2661,6 +2662,10 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
         this.registerSetting(this.backgroundAlpha = new ravens4.module.setting.impl.SliderSetting("Background Alpha", 110.0, 0.0, 255.0, 1.0));
         this.registerSetting(this.roundingRadius = new ravens4.module.setting.impl.SliderSetting("Rounding Radius", 5.0, 0.0, 20.0, 0.5));
         this.registerSetting(this.informationType = new ravens4.module.setting.impl.SliderSetting("Information Type", 0, INFO_TYPES));
+        this.registerSetting(this.fpsCounter = new ravens4.module.setting.impl.ButtonSetting("FPS Counter", false));
+        this.registerSetting(this.fpsTitle = new ravens4.module.setting.impl.ButtonSetting("FPS Title", false));
+        this.registerSetting(this.bpsCounter = new ravens4.module.setting.impl.ButtonSetting("BPS Counter", false));
+        this.registerSetting(this.bpsTitle = new ravens4.module.setting.impl.ButtonSetting("BPS Title", true));
     }
 
     String getOption(ravens4.module.setting.impl.SliderSetting s, String[] arr) {
@@ -2689,8 +2694,20 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
         savePersistedState();
     }
 
+    /** Enabled exactly while the HUD module runs in its DLayout3 mode. */
+    @Override
+    public boolean isEnabled() {
+        return ravens4.module.impl.render.HUD.isDLayout3Active();
+    }
+
     @Override
     public void guiUpdate() {
+        if (ravens4.module.ModuleManager.hud != null) {
+            ravens4.module.ModuleManager.hud.guiUpdate();
+        }
+    }
+
+    void computeVisibility() {
         boolean isModern = true;
         boolean isCustomFont = isModern && "Custom".equals(getOption(this.modernFont, MODERN_FONTS));
 
@@ -2703,6 +2720,8 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
         this.modernParticlesOnKill.setVisible(isModern, this);
         this.modernBackground.setVisible(isModern, this);
         this.modernClientName.setVisible(isModern, this);
+        this.fpsTitle.setVisible(this.fpsCounter.isToggled(), this);
+        this.bpsTitle.setVisible(this.bpsCounter.isToggled(), this);
 
     }
 }
@@ -3041,21 +3060,22 @@ static final class RiseFpsCounterModule extends ravens4.module.Module {
     RiseFpsCounterModule() {
         super("FPS Counter", ravens4.module.Module.category.render, 0);
         this.alwaysOn = true;
-        this.registerSetting(this.showTitle = new ravens4.module.setting.impl.ButtonSetting("Title", false));
+        // the switches live in the DLayout3 settings of the HUD module
+        this.showTitle = interfaceModule != null ? interfaceModule.fpsTitle : new ravens4.module.setting.impl.ButtonSetting("Title", false);
+    }
+
+    /** On while the HUD runs in DLayout3 and its "FPS Counter" setting is on. */
+    @Override
+    public boolean isEnabled() {
+        return interfaceModule != null && interfaceModule.isEnabled() && interfaceModule.fpsCounter.isToggled();
     }
 
     void loadConfig() {
         this.dragBox.loadFromConfig();
-        this.showTitle.setEnabled(readConfigBool("rise_fps_title", false));
-        if (readConfigBool("rise_fps_enabled", false)) {
-            this.setEnabled(true);
-        }
     }
 
     void saveConfig() {
         this.dragBox.saveToConfig();
-        config.set("rise_fps_title", String.valueOf(this.showTitle.isToggled()));
-        config.set("rise_fps_enabled", String.valueOf(this.isEnabled()));
     }
 
     @Override
@@ -3120,21 +3140,22 @@ static final class RiseBpsCounterModule extends ravens4.module.Module {
     RiseBpsCounterModule() {
         super("BPS Counter", ravens4.module.Module.category.render, 0);
         this.alwaysOn = true;
-        this.registerSetting(this.showTitle = new ravens4.module.setting.impl.ButtonSetting("Title", true));
+        // the switches live in the DLayout3 settings of the HUD module
+        this.showTitle = interfaceModule != null ? interfaceModule.bpsTitle : new ravens4.module.setting.impl.ButtonSetting("Title", true);
+    }
+
+    /** On while the HUD runs in DLayout3 and its "BPS Counter" setting is on. */
+    @Override
+    public boolean isEnabled() {
+        return interfaceModule != null && interfaceModule.isEnabled() && interfaceModule.bpsCounter.isToggled();
     }
 
     void loadConfig() {
         this.dragBox.loadFromConfig();
-        this.showTitle.setEnabled(readConfigBool("rise_bps_title", true));
-        if (readConfigBool("rise_bps_enabled", false)) {
-            this.setEnabled(true);
-        }
     }
 
     void saveConfig() {
         this.dragBox.saveToConfig();
-        config.set("rise_bps_title", String.valueOf(this.showTitle.isToggled()));
-        config.set("rise_bps_enabled", String.valueOf(this.isEnabled()));
     }
 
     @Override

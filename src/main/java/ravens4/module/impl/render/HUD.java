@@ -44,6 +44,63 @@ public class HUD extends Module {
 
     public static SliderSetting colorMode;
     public static SliderSetting mode;
+    /** Settings of the DLayout3 layout (the former Interface HUD); they only show while DLayout3 is the selected mode. */
+    private final List<ravens4.module.setting.Setting> dlayout3Settings = new ArrayList<ravens4.module.setting.Setting>();
+
+    /** True while this module is enabled and its mode is DLayout3: the Interface HUD engine draws the HUD then. */
+    public static boolean isDLayout3Active() {
+        return ravens4.module.ModuleManager.hud != null && ravens4.module.ModuleManager.hud.isEnabled()
+                && mode != null && (int) mode.getInput() == 3;
+    }
+
+    /** Takes over the settings of the DLayout3 (Interface HUD) engine; called once when that engine is created. */
+    public void adoptDLayout3Settings(java.util.List<ravens4.module.setting.Setting> settings) {
+        if (!this.dlayout3Settings.isEmpty()) {
+            return;
+        }
+        for (ravens4.module.setting.Setting setting : settings) {
+            for (ravens4.module.setting.Setting own : this.getSettings()) {
+                if (own.getName().equals(setting.getName())) {
+                    setting.name = "DLayout3 " + setting.name;
+                    break;
+                }
+            }
+            this.dlayout3Settings.add(setting);
+            this.registerSetting(setting);
+        }
+        this.guiUpdate();
+        if (ravens4.Raven.clickGui != null) {
+            for (ravens4.clickgui.components.impl.CategoryComponent category : ravens4.Raven.clickGui.categories) {
+                if (category.category == this.moduleCategory()) {
+                    for (ravens4.clickgui.components.impl.ModuleComponent component : category.modules) {
+                        if (component.mod == this) {
+                            component.reloadSettings();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void updateDLayout3Visibility(boolean selected) {
+        if (this.dlayout3Settings.isEmpty()) {
+            return;
+        }
+        int n = this.dlayout3Settings.size();
+        boolean[] before = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            before[i] = this.dlayout3Settings.get(i).visible;
+        }
+        ravens4.module.impl.client.rise.Interface.computeDLayout3Visibility();
+        boolean[] wanted = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            wanted[i] = this.dlayout3Settings.get(i).visible;
+            this.dlayout3Settings.get(i).visible = before[i];
+        }
+        for (int i = 0; i < n; i++) {
+            this.dlayout3Settings.get(i).setVisible(selected && wanted[i], this);
+        }
+    }
     public static ColorSetting hudColor;
     public static ColorSetting hudColor2;
     public static SliderSetting waveAxis;
@@ -70,7 +127,7 @@ public class HUD extends Module {
     private static final String[] OUTLINE_MODES = new String[] { "None", "Full", "Side" };
     private static final String[] HUD_FONT_OPTIONS = FontManager.getHudFontOptions();
     private static final int BACKGROUND_COLOR = new Color(0, 0, 0, 110).getRGB();
-    private static final String[] MODES = new String[] { "Ordinary", "DLayout1", "DLayout2" };
+    private static final String[] MODES = new String[] { "Ordinary", "DLayout1", "DLayout2", "DLayout3" };
     // Categories DLayout1 was originally written against also included "NetWork" and "Fun",
     // which don't exist in this codebase's Module.category enum - only the categories that
     // are actually real here are exposed as toggles.
@@ -199,6 +256,16 @@ public class HUD extends Module {
         if (waveLength != null) {
             waveLength.setVisible(showWaveSettings, this);
         }
+
+        boolean dlayout3Selected = mode != null && (int) mode.getInput() == 3;
+        if (dlayout3Selected) {
+            for (ravens4.module.setting.Setting setting : this.getSettings()) {
+                if (setting != mode && !this.dlayout3Settings.contains(setting)) {
+                    setting.setVisible(false, this);
+                }
+            }
+        }
+        updateDLayout3Visibility(dlayout3Selected);
     }
 
     @Override
@@ -267,6 +334,10 @@ public class HUD extends Module {
         }
         Module.sort = false;
 
+        if (mode != null && (int) mode.getInput() == 3) {
+            // DLayout3 is drawn by the Interface HUD engine (rise.Interface), not here
+            return;
+        }
         if (mode != null && (int) mode.getInput() == 1) {
             renderDLayout1();
             return;
