@@ -12,7 +12,7 @@ public final class ThemePalette {
     private static final String[] THEME_OPTIONS = new String[]{
             "Default", "Rainbow", "Aurora", "Cherry", "Cotton Candy",
             "Flare", "Flower", "Forest", "Frost", "Gold",
-            "Grayscale", "Inferno", "Royal", "Sandstorm", "Sky", "Vine"
+            "Grayscale", "Inferno", "Royal", "Sandstorm", "Sky", "Vine", "Client"
     };
 
     /** Two-stop gradients (indexed by lower-case theme name) that pulse back and forth every 5 seconds. */
@@ -40,7 +40,7 @@ public final class ThemePalette {
     private ThemePalette() {
     }
 
-    /** The theme names (index 0 is "Default"). */
+    /** The theme names (index 0 is "Default", the last one is "Client": the theme picked in the Theme category). */
     public static String[] getThemeOptions() {
         return THEME_OPTIONS.clone();
     }
@@ -60,6 +60,10 @@ public final class ThemePalette {
         }
 
         String name = THEME_OPTIONS[themeIndex].toLowerCase();
+        if (name.equals("client")) {
+            // follows the theme picked in the Theme category
+            return 0xFF000000 | ClientTheme.getAnimatedColor(now, 0.0f);
+        }
         if (name.equals("rainbow")) {
             return Color.HSBtoRGB((now % THEME_PERIOD_MS) / (float) THEME_PERIOD_MS, 1.0f, 1.0f);
         }

@@ -95,6 +95,17 @@ public final class ClientTheme {
                         changed = true;
                     }
                 }
+                else if (setting instanceof SliderSetting && setting.getName().equals("Theme")) {
+                    // theme sliders of the HUD layouts: switch them to the "Client" theme, which follows this one
+                    String[] options = ((SliderSetting) setting).getOptions();
+                    for (int i = 0; options != null && i < options.length; i++) {
+                        if (options[i].equalsIgnoreCase("Client")) {
+                            ((SliderSetting) setting).setValue(i);
+                            changed = true;
+                            break;
+                        }
+                    }
+                }
                 else if (setting instanceof SliderSetting && setting.getName().equals("Color mode")) {
                     int option = findColorMode((SliderSetting) setting, name, rainbow);
                     if (option >= 0) {

@@ -96,6 +96,7 @@ public class HUD extends Module {
     public static SliderSetting dlayout2BackgroundOpacity;
     public static ButtonSetting dlayout2Blur;
     public static ButtonSetting dlayout2Bloom;
+    public static ButtonSetting dlayout2Sidebar;
     public static SliderSetting dlayout2BloomStrength;
 
     private boolean isAlphabeticalSort;
@@ -141,6 +142,7 @@ public class HUD extends Module {
         this.registerSetting(dlayout2Blur = new ButtonSetting("Blur", false));
         this.registerSetting(dlayout2Bloom = new ButtonSetting("Bloom", false));
         this.registerSetting(dlayout2BloomStrength = new SliderSetting("Bloom strength", "%", 100, 10, 300, 10));
+        this.registerSetting(dlayout2Sidebar = new ButtonSetting("Sidebar", false));
     }
 
     @Override
@@ -170,6 +172,7 @@ public class HUD extends Module {
         if (dlayout2BackgroundOpacity != null) dlayout2BackgroundOpacity.setVisible(dlayout2Selected, this);
         if (dlayout2Blur != null) dlayout2Blur.setVisible(dlayout2Selected, this);
         if (dlayout2Bloom != null) dlayout2Bloom.setVisible(dlayout2Selected, this);
+        if (dlayout2Sidebar != null) dlayout2Sidebar.setVisible(dlayout2Selected, this);
         if (dlayout2BloomStrength != null) dlayout2BloomStrength.setVisible(dlayout2Selected && dlayout2Bloom != null && dlayout2Bloom.isToggled(), this);
 
         int colorModeValue = colorMode == null ? 0 : (int) colorMode.getInput();
@@ -741,6 +744,9 @@ public class HUD extends Module {
             d2DrawBloom(screenWidth, screenHeight);
         }
         d2DrawShapes(backgroundRgb, opacity);
+        if (dlayout2Sidebar != null && dlayout2Sidebar.isToggled()) {
+            d2DrawSidebars(rightAligned, px);
+        }
 
         boolean shadow = shouldDrawTextShadow();
         for (int i = 0; i < count; i++) {
@@ -755,6 +761,31 @@ public class HUD extends Module {
                 font.drawString(row.status, textX + row.nameWidth + gap, textY, d2Argb(detailRgb, row.ra), shadow);
             }
         }
+    }
+
+    /** A thin bar in the row's text colour on the screen side of every row (the Interface module's sidebar). */
+    private void d2DrawSidebars(boolean rightAligned, float paddingX) {
+        float barWidth = Math.max(1.0F, Math.min(2.0F, paddingX));
+        net.minecraft.client.renderer.GlStateManager.enableBlend();
+        net.minecraft.client.renderer.GlStateManager.disableTexture2D();
+        net.minecraft.client.renderer.GlStateManager.disableCull();
+        net.minecraft.client.renderer.GlStateManager.disableAlpha();
+        net.minecraft.client.renderer.GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        org.lwjgl.opengl.GL11.glBegin(org.lwjgl.opengl.GL11.GL_TRIANGLES);
+        for (D2Row row : d2Rows) {
+            if (!row.visible) {
+                continue;
+            }
+            int color = row.textColor;
+            org.lwjgl.opengl.GL11.glColor4f(((color >> 16) & 0xFF) / 255.0F, ((color >> 8) & 0xFF) / 255.0F, (color & 0xFF) / 255.0F, row.ra);
+            float x = rightAligned ? row.rx + row.rw - barWidth : row.rx;
+            d2Quad(x, row.ry, x + barWidth, row.ry + row.rh);
+        }
+        org.lwjgl.opengl.GL11.glEnd();
+        net.minecraft.client.renderer.GlStateManager.enableAlpha();
+        net.minecraft.client.renderer.GlStateManager.enableTexture2D();
+        net.minecraft.client.renderer.GlStateManager.disableBlend();
+        net.minecraft.client.renderer.GlStateManager.resetColor();
     }
 
     private void d2DrawShapes(int rgb, float opacity) {
