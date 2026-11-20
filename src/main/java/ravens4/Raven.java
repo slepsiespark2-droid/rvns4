@@ -102,6 +102,7 @@ public class Raven {
         profileManager = new ProfileManager();
         ScriptDefaults.reloadModules();
         ModuleManager.interfaceModule.init();
+        ModuleManager.fly.init();
         scriptManager.loadScripts();
         profileManager.loadProfiles();
         ReflectionUtils.setKeyBindings();

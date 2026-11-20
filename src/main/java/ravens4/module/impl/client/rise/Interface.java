@@ -830,6 +830,45 @@ static void syncClickGuiKeybind() {
     }
 }
 
+public static String[] themeNames() {
+    RiseTheme[] all = RiseTheme.values();
+    String[] names = new String[all.length];
+    for (int i = 0; i < all.length; i++) {
+        names[i] = all[i].themeName;
+    }
+    return names;
+}
+
+public static int activeThemeIndex() {
+    return activeTheme == null ? 0 : activeTheme.ordinal();
+}
+
+public static void setActiveThemeIndex(int index) {
+    RiseTheme[] all = RiseTheme.values();
+    if (index < 0 || index >= all.length) {
+        return;
+    }
+    activeTheme = all[index];
+    savePersistedState();
+}
+
+/** {first, second} colours of a theme as RGB ints; rainbow themes sample the rainbow. */
+public static int[] themeRgb(int index) {
+    RiseTheme[] all = RiseTheme.values();
+    RiseTheme t = all[Math.max(0, Math.min(all.length - 1, index))];
+    return new int[]{t.firstColor().getRGB() & 0xFFFFFF, t.secondColor().getRGB() & 0xFFFFFF};
+}
+
+public static boolean themeIsRainbow(int index) {
+    RiseTheme[] all = RiseTheme.values();
+    return all[Math.max(0, Math.min(all.length - 1, index))].rainbow;
+}
+
+/** Animated accent colour of the active theme (RGB). */
+public static int themeAccentRgb(double position) {
+    return activeTheme.accentAt(position, 0.0).getRGB() & 0xFFFFFF;
+}
+
 static void loadPersistedState() {
     try {
         String savedTheme = config.get("rise_theme");
@@ -5200,6 +5239,7 @@ static enum SidebarCategory {
                         && !"network".equals(cn)
                         && !"minigames".equals(cn)
                         && !"scripts".equals(cn)
+                        && !"theme".equals(cn)
                         && !"profiles".equals(cn);
             case SCRIPTS:
                 return "scripts".equals(cn);
@@ -7297,6 +7337,7 @@ static final class ThemesPage extends GuiPage {
             if (DrawUtil.hovered(tc.hitX, tc.hitY, tc.hitW, 50.0, mouseX, mouseY)) {
                 activeTheme = tc.theme;
                 savePersistedState();
+                ravens4.utility.ClientTheme.applyToRenderModules();
                 return;
             }
         }

@@ -628,6 +628,9 @@ public class CategoryComponent {
             case scripts:
                 itemStack = new ItemStack(Items.redstone);
                 break;
+            case theme:
+                itemStack = new ItemStack(Items.dye, 1, 1);
+                break;
             default:
                 return null;
         }

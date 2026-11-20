@@ -78,6 +78,7 @@ public class ModuleManager {
     public static Relationships relationships;
     public static Displace displace;
     public static Clutch clutch;
+    public static ravens4.module.impl.movement.Fly fly;
     public static ravens4.module.impl.client.Interface interfaceModule;
 
     public void register() {
@@ -86,6 +87,11 @@ public class ModuleManager {
         this.addModule(new Gui());
         this.addModule(new Settings());
         this.addModule(interfaceModule = new ravens4.module.impl.client.Interface());
+        this.addModule(new ravens4.module.impl.client.theme.ThemeSettings());
+        String[] themeNames = ravens4.utility.ClientTheme.getNames();
+        for (int i = 0; i < themeNames.length; i++) {
+            this.addModule(new ravens4.module.impl.client.theme.ThemeEntry(themeNames[i], i));
+        }
         this.addModule(relationships = new Relationships());
         if (ravens4.Raven.playerRelationsManager == null || ravens4.Raven.playerRelationsManager.isActive()) {
             relationships.enable();
@@ -117,6 +123,7 @@ public class ModuleManager {
         this.addModule(bHop = new BHop());
         this.addModule(movementFix = new MovementFix());
         this.addModule(invmove = new InvMove());
+        this.addModule(fly = new ravens4.module.impl.movement.Fly());
         this.addModule(keepSprint = new KeepSprint());
         this.addModule(longJump = new LongJump());
         this.addModule(noSlow = new NoSlow());
