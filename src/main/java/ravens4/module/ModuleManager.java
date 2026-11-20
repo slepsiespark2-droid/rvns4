@@ -53,7 +53,6 @@ public class ModuleManager {
     public static Blink blink;
     public static Chams chams;
     public static HUD hud;
-    public static PotionHUD potionHUD;
     public static Timer timer;
     public static WTap wTap;
     public static Velocity velocity;
@@ -180,7 +179,6 @@ public class ModuleManager {
         this.addModule(new Visuals());
         this.addModule(new FireballPath());
         this.addModule(playerESP = new PlayerESP());
-        this.addModule(potionHUD = new PotionHUD());
         this.addModule(new Saturation());
         this.addModule(new TargetHUD());
         this.addModule(new Trajectories());

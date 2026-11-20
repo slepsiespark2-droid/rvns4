@@ -12,7 +12,6 @@ import ravens4.module.impl.client.Relationships;
 import ravens4.module.impl.client.Settings;
 import ravens4.module.impl.render.HUD;
 import ravens4.module.impl.render.TargetHUD;
-import ravens4.module.impl.render.PotionHUD;
 import ravens4.module.setting.Setting;
 import ravens4.module.setting.impl.BlockListSetting;
 import ravens4.module.setting.impl.ButtonSetting;
@@ -133,13 +132,6 @@ public class ProfileManager implements IMinecraftInstance {
             moduleInformation.addProperty("posY", HUD.posY);
             moduleInformation.addProperty("relPosX", HUD.getRelativePosX());
             moduleInformation.addProperty("relPosY", HUD.getRelativePosY());
-        }
-        else if (module instanceof PotionHUD) {
-            PotionHUD potionHUD = (PotionHUD) module;
-            moduleInformation.addProperty("posX", potionHUD.getPosX());
-            moduleInformation.addProperty("posY", potionHUD.getPosY());
-            moduleInformation.addProperty("relPosX", potionHUD.getRelativePosX());
-            moduleInformation.addProperty("relPosY", potionHUD.getRelativePosY());
         }
         else if (module instanceof TargetHUD) {
             TargetHUD targetHUD = (TargetHUD) module;
@@ -313,20 +305,6 @@ public class ProfileManager implements IMinecraftInstance {
                             float hudX = moduleInformation.has("posX") ? moduleInformation.get("posX").getAsFloat() : HUD.posX;
                             float hudY = moduleInformation.has("posY") ? moduleInformation.get("posY").getAsFloat() : HUD.posY;
                             HUD.setAbsolutePosition(hudX, hudY);
-                        }
-                    }
-                    else if (module.getName().equals("Potion HUD")) {
-                        PotionHUD potionHUD = (PotionHUD) module;
-                        if (moduleInformation.has("relPosX") && moduleInformation.has("relPosY")) {
-                            potionHUD.setRelativePosition(
-                                    moduleInformation.get("relPosX").getAsFloat(),
-                                    moduleInformation.get("relPosY").getAsFloat()
-                            );
-                        }
-                        else if (moduleInformation.has("posX") || moduleInformation.has("posY")) {
-                            float posX = moduleInformation.has("posX") ? moduleInformation.get("posX").getAsFloat() : potionHUD.getPosX();
-                            float posY = moduleInformation.has("posY") ? moduleInformation.get("posY").getAsFloat() : potionHUD.getPosY();
-                            potionHUD.setAbsolutePosition(posX, posY);
                         }
                     }
                     else if (module.getName().equals("TargetHUD")) {

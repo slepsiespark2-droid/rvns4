@@ -2409,7 +2409,6 @@ static final class Loc {
         MODULE_DESCRIPTIONS.put("LagRange", "Holds packets to gain a range advantage");
         MODULE_DESCRIPTIONS.put("HUD", "Renders the default Raven module list");
         MODULE_DESCRIPTIONS.put("Notifications", "Displays module toggle notifications");
-        MODULE_DESCRIPTIONS.put("PotionHUD", "Displays active potion effects on screen");
         MODULE_DESCRIPTIONS.put("TargetHUD", "Displays combat target health and information");
         MODULE_DESCRIPTIONS.put("Nametags", "Renders enhanced nametags above players");
         MODULE_DESCRIPTIONS.put("PlayerESP", "Highlights players through walls");
@@ -2596,6 +2595,8 @@ static final class RiseClickGuiModule extends ravens4.module.Module {
 }
 
 static final class RiseInterfaceModule extends ravens4.module.Module {
+    final ravens4.module.setting.impl.ButtonSetting showCoordinates;
+    final ravens4.module.setting.impl.ButtonSetting showPotionHud;
     final ravens4.module.setting.impl.ButtonSetting fpsCounter;
     final ravens4.module.setting.impl.ButtonSetting fpsTitle;
     final ravens4.module.setting.impl.ButtonSetting bpsCounter;
@@ -2662,6 +2663,8 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
         this.registerSetting(this.backgroundAlpha = new ravens4.module.setting.impl.SliderSetting("Background Alpha", 110.0, 0.0, 255.0, 1.0));
         this.registerSetting(this.roundingRadius = new ravens4.module.setting.impl.SliderSetting("Rounding Radius", 5.0, 0.0, 20.0, 0.5));
         this.registerSetting(this.informationType = new ravens4.module.setting.impl.SliderSetting("Information Type", 0, INFO_TYPES));
+        this.registerSetting(this.showCoordinates = new ravens4.module.setting.impl.ButtonSetting("Coordinates", false));
+        this.registerSetting(this.showPotionHud = new ravens4.module.setting.impl.ButtonSetting("Potion HUD", false));
         this.registerSetting(this.fpsCounter = new ravens4.module.setting.impl.ButtonSetting("FPS Counter", false));
         this.registerSetting(this.fpsTitle = new ravens4.module.setting.impl.ButtonSetting("FPS Title", false));
         this.registerSetting(this.bpsCounter = new ravens4.module.setting.impl.ButtonSetting("BPS Counter", false));
@@ -4758,21 +4761,14 @@ static final class InterfaceEngine {
         Entity player = client.getPlayer();
         Vec3 pPos = player != null ? player.getPosition() : new Vec3(0, 0, 0);
         final String coordsText = (int) Math.floor(pPos.x) + ", " + (int) Math.floor(pPos.y) + ", " + (int) Math.floor(pPos.z);
-        final String userName = client.getUser() != null ? client.getUser() : "Player";
         final float bottomY = sh - listFont.height() - 2.0f;
         final float xyzLabelW = RiseFont.F18.width("XYZ:") + 2.0f;
 
-        final String verLabel = "Version: ";
-        final String userLabel = "User: ";
-        final float verLabelW = RiseFont.F18.width(verLabel);
-        final float verValW = RiseFont.F18.width(CLIENT_VERSION);
-        final float userLabelW = RiseFont.F18.width(userLabel);
-        final float userValW = RiseFont.F18.width(userName);
-        final float userStartX = sw - 5.0f - (userLabelW + userValW);
-        final float verStartX = userStartX - 5.0f - (verLabelW + verValW);
+        final boolean showCoords = hud.showCoordinates.isToggled();
+        final boolean showPotions = hud.showPotionHud.isToggled();
 
         final List<Object[]> activePotions = new ArrayList<Object[]>();
-        if (player != null) {
+        if (player != null && showPotions) {
             List<Object[]> rawPots = player.getPotionEffects();
             for (int i = 0; i < rawPots.size(); i++) {
                 Object[] pd = rawPots.get(i);
@@ -4889,14 +4885,9 @@ static final class InterfaceEngine {
                 }
 
                 int infoCol = -3355444;
-                if (!hideBottomInfo) {
+                if (!hideBottomInfo && showCoords) {
                     RiseFont.F18.drawShadow("XYZ:", 5.0, bottomY, infoCol);
                     RiseFont.F18.drawShadow(coordsText, 5.0 + xyzLabelW, bottomY, infoCol);
-
-                    RiseFont.F18.drawShadow(verLabel, verStartX, bottomY, infoCol);
-                    RiseFont.F18.drawShadow(CLIENT_VERSION, verStartX + verLabelW, bottomY, infoCol);
-                    RiseFont.F18.drawShadow(userLabel, userStartX, bottomY, infoCol);
-                    RiseFont.F18.drawShadow(userName, userStartX + userLabelW, bottomY, infoCol);
                 }
 
                 for (int i = 0; i < activePotions.size(); i++) {

@@ -30,6 +30,8 @@ public class Interface extends Module {
 
     public Interface() {
         super("Interface", category.client);
+        // not a switch any more: the interface (click GUI, DLayout3 HUD, notifications...) is always running
+        this.canBeEnabled = false;
     }
 
     /** Registers the script's settings. Called once after ModuleManager.register() and ScriptDefaults.reloadModules(). */
@@ -37,6 +39,7 @@ public class Interface extends Module {
         try {
             ScriptDefaults.reloadModules();
             script.onLoad();
+            activate();
         }
         catch (Throwable t) {
             t.printStackTrace();
@@ -44,18 +47,33 @@ public class Interface extends Module {
         }
     }
 
-    @Override
-    public void onEnable() {
-        if (!eventsRegistered) {
-            MinecraftForge.EVENT_BUS.register(events);
-            eventsRegistered = true;
+    /** Starts the interface for good: registers its events and creates the DLayout3 engine and its settings. */
+    private void activate() {
+        if (this.eventsRegistered) {
+            return;
         }
+        MinecraftForge.EVENT_BUS.register(events);
+        this.eventsRegistered = true;
+        this.setEnabled(true);
         try {
             script.onEnable();
         }
         catch (Throwable t) {
             t.printStackTrace();
         }
+    }
+
+    @Override
+    public void enable() {
+    }
+
+    @Override
+    public void disable() {
+    }
+
+    @Override
+    public void onEnable() {
+        activate();
     }
 
     @Override
