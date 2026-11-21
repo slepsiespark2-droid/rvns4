@@ -184,7 +184,7 @@ tasks.assemble.get().dependsOn(tasks.remapJar)
 val proguardJar by tasks.register<proguard.gradle.ProGuardTask>("proguardJar") {
     dependsOn(remapJar)
 
-    injars(remapJar.get().archiveFile)
+    injars(remapJar.archiveFile)
     outjars(layout.buildDirectory.file("libs/${modid}-protected.jar"))
 
     // Java 8 rt.jar / module path for ProGuard's analysis
