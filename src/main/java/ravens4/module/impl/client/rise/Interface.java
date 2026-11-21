@@ -65,24 +65,15 @@ static Entity lastAttackedTarget = null;
 static long lastAttackTimeMs = 0L;
 
 public void onLoad() {
-    int savedBind = readSavedBindFromConfig();
-    currentGuiBind = savedBind;
-    modules.registerButton("Font Prefix", false);
-    registerFontSetting();
-    registerToggleSettings();
-    modules.registerKey("GUI Keybind", savedBind);
+    currentGuiBind = guiModuleKeycode();
     loadPersistedState();
 }
 
 public void onEnable() {
     keyToggleCooldown.millis = 0L;
     loadPersistedState();
-    ravens4.module.setting.impl.KeySetting scriptKs = findSelfScriptKeySetting();
-    if (scriptKs != null) {
-        currentGuiBind = Math.max(0, scriptKs.getKey());
-    }
+    currentGuiBind = guiModuleKeycode();
     ensureModulesCreated();
-    applyGuiBindEverywhere(currentGuiBind, true);
     prevGuiBindDown = isGuiBindPressedRaw();
     registerRenderModules();
     syncModuleStatesSnapshot();
@@ -349,6 +340,9 @@ public boolean onKeyPress(char typedChar, int keyCode) {
 
 void onKey(String keyName, int keyCode, boolean state, boolean inGui) {
     syncClickGuiKeybind();
+    if (!isGuiOpenedByKeybind()) {
+        return;
+    }
     if (!state || inGui || clickGuiModule == null) {
         return;
     }
@@ -367,6 +361,9 @@ void onKey(String keyName, int keyCode, boolean state, boolean inGui) {
 
 public boolean onMouse(int button, boolean state, int x, int y) {
     syncClickGuiKeybind();
+    if (!isGuiOpenedByKeybind()) {
+        return true;
+    }
     if (clickGuiModule == null || guiScreenOpen || !client.getScreen().isEmpty()) {
         return true;
     }
@@ -471,7 +468,6 @@ static void registerRenderModules() {
         return;
     }
     List<ravens4.module.Module> list = mm.getModules();
-    addRenderModIfAbsent(mm, list, clickGuiModule);
     addRenderModIfAbsent(mm, list, targetInfoModule);
     addRenderModIfAbsent(mm, list, notificationsModule);
     Collections.sort(list, new Comparator<ravens4.module.Module>() {
@@ -490,7 +486,6 @@ static void registerRenderModules() {
 static void unregisterRenderModules() {
     ravens4.module.ModuleManager mm = ravens4.Raven.getModuleManager();
     if (mm != null) {
-        removeRenderMod(mm, clickGuiModule);
         removeRenderMod(mm, targetInfoModule);
         removeRenderMod(mm, notificationsModule);
     }
@@ -516,7 +511,7 @@ static void reloadRenderCategoryInRavenGui() {
 }
 
 static void openRiseClickGui() {
-    if (!toggleOn(showClickGuiSetting)) {
+    if (!ravens4.module.impl.client.Gui.isRClickGui()) {
         return;
     }
     pendingWheel = 0;
@@ -635,9 +630,6 @@ static float getBloomOffset() {
 
 static List<ravens4.module.Module> selfCandidates() {
     List<ravens4.module.Module> out = new ArrayList<ravens4.module.Module>();
-    if (ravens4.module.ModuleManager.interfaceModule != null) {
-        out.add(ravens4.module.ModuleManager.interfaceModule);
-    }
     if (ravens4.Raven.scriptManager != null && ravens4.Raven.scriptManager.scripts != null) {
         out.addAll(ravens4.Raven.scriptManager.scripts.values());
     }
@@ -686,7 +678,7 @@ static void pollGuiKeybindInGame() {
         return;
     }
     boolean down = isGuiBindPressedRaw();
-    if (!toggleOn(showClickGuiSetting)) {
+    if (!isGuiOpenedByKeybind()) {
         prevGuiBindDown = down;
         return;
     }
@@ -734,42 +726,31 @@ static ravens4.module.setting.impl.KeySetting findSelfScriptKeySetting() {
 }
 
 static void applyGuiBindEverywhere(int nextBind, boolean persist) {
-    int safe = Math.max(0, nextBind);
-    currentGuiBind = safe;
-    ravens4.module.setting.impl.KeySetting scriptKs = findSelfScriptKeySetting();
-    if (scriptKs != null && scriptKs.getKey() != safe) {
-        scriptKs.setKey(safe);
-    }
-    if (clickGuiModule != null) {
-        if (clickGuiModule.keybindSetting.getKey() != safe) {
-            clickGuiModule.keybindSetting.setKey(safe);
-        }
-        if (clickGuiModule.getKeycode() != safe) {
-            clickGuiModule.setBind(safe);
-        }
-    }
-    if (persist) {
-        try {
-            config.set("rise_clickgui_bind", String.valueOf(safe));
-        } catch (Exception ignored) {
-        }
-    }
+    currentGuiBind = Math.max(0, nextBind);
+}
+
+/** The key of the Gui module: pressing it opens (and, inside RClickGui, closes) the GUI. */
+static int guiModuleKeycode() {
+    ravens4.module.impl.client.Gui gui = ravens4.module.impl.client.Gui.instance;
+    return gui == null ? 0 : Math.max(0, gui.getKeycode());
 }
 
 static void syncClickGuiKeybind() {
-    ravens4.module.setting.impl.KeySetting scriptKs = findSelfScriptKeySetting();
-    if (scriptKs != null && scriptKs.getKey() != currentGuiBind) {
-        applyGuiBindEverywhere(scriptKs.getKey(), true);
-        return;
+    int key = guiModuleKeycode();
+    if (key != currentGuiBind) {
+        currentGuiBind = key;
     }
-    if (clickGuiModule != null) {
-        if (clickGuiModule.keybindSetting.getKey() != currentGuiBind) {
-            applyGuiBindEverywhere(clickGuiModule.keybindSetting.getKey(), true);
-            return;
-        }
-        if (clickGuiModule.getKeycode() != currentGuiBind) {
-            applyGuiBindEverywhere(clickGuiModule.getKeycode(), true);
-        }
+}
+
+/** RClickGui is opened by the Gui module (its key), so the Rise code does not open it from keys or the mouse itself. */
+static boolean isGuiOpenedByKeybind() {
+    return false;
+}
+
+/** Called by the Gui module when its mode is RClickGui. */
+public static void openFromGui() {
+    if (clickGuiModule != null && !clickGuiModule.isEnabled()) {
+        clickGuiModule.enable();
     }
 }
 
@@ -924,38 +905,19 @@ static boolean readConfigBool(String key, boolean defVal) {
     return defVal;
 }
 
-static ravens4.module.setting.impl.SliderSetting fontSetting = null;
-
-static ravens4.module.setting.impl.ButtonSetting showClickGuiSetting = null;
-static ravens4.module.setting.impl.ButtonSetting showHudSetting = null;
-static ravens4.module.setting.impl.ButtonSetting showWatermarkSetting = null;
-
-static void registerToggleSettings() {
-    ravens4.module.Module host = ravens4.module.ModuleManager.interfaceModule;
-    if (host == null || showClickGuiSetting != null) {
-        return;
-    }
-    host.registerSetting(showClickGuiSetting = new ravens4.module.setting.impl.ButtonSetting("ClickGUI", true));
-    host.registerSetting(showHudSetting = new ravens4.module.setting.impl.ButtonSetting("HUD", true));
-    host.registerSetting(showWatermarkSetting = new ravens4.module.setting.impl.ButtonSetting("Watermark", true));
-}
-
 static boolean toggleOn(ravens4.module.setting.impl.ButtonSetting setting) {
     return setting == null || setting.isToggled();
 }
 
-static void registerFontSetting() {
-    ravens4.module.Module host = ravens4.module.ModuleManager.interfaceModule;
-    if (host == null || fontSetting != null) {
-        return;
-    }
-    fontSetting = new ravens4.module.setting.impl.SliderSetting("Font", 0, ravens4.utility.font.FontManager.getHudFontOptions());
-    host.registerSetting(fontSetting);
+/** The Watermark setting of DLayout3. */
+static boolean watermarkOn() {
+    return interfaceModule == null || interfaceModule.watermark.isToggled();
 }
 
-/** Selected custom font family, or null when the Minecraft font is selected. */
+/** Selected custom font family (Gui module, "Rise font"), or null when the Minecraft font is selected. */
 static String currentFontFamily() {
     try {
+        ravens4.module.setting.impl.SliderSetting fontSetting = ravens4.module.impl.client.Gui.riseFont;
         if (fontSetting == null) {
             return null;
         }
@@ -972,7 +934,7 @@ static String currentFontFamily() {
 
 static boolean isFontPrefixEnabled() {
     try {
-        return modules.getButton(scriptName, "Font Prefix");
+        return ravens4.module.impl.client.Gui.riseFontPrefix != null && ravens4.module.impl.client.Gui.riseFontPrefix.isToggled();
     } catch (Exception e) {
         return false;
     }
@@ -2549,18 +2511,17 @@ static final class Loc {
 
 static final class RiseClickGuiModule extends ravens4.module.Module {
     final ravens4.module.setting.impl.KeySetting keybindSetting;
-    final ravens4.module.setting.impl.SliderSetting sizeSetting;
 
     RiseClickGuiModule() {
         super("ClickGUI", ravens4.module.Module.category.render, currentGuiBind);
         this.alwaysOn = true;
-        this.registerSetting(this.sizeSetting = new ravens4.module.setting.impl.SliderSetting("Size", 100.0, 1.0, 100.0, 1.0));
         this.registerSetting(this.keybindSetting = new ravens4.module.setting.impl.KeySetting("Keybind", currentGuiBind));
     }
 
     /** Scale of the Modern GUI: Size 100 is the normal 400x300 window, Size 1 is 30% of it. */
     double getModernScale() {
-        double size = Math.max(1.0, Math.min(100.0, this.sizeSetting.getInput()));
+        ravens4.module.setting.impl.SliderSetting sizeSetting = ravens4.module.impl.client.Gui.riseSize;
+        double size = Math.max(1.0, Math.min(100.0, sizeSetting == null ? 100.0 : sizeSetting.getInput()));
         return 0.3 + 0.7 * (size - 1.0) / 99.0;
     }
 
@@ -2595,6 +2556,7 @@ static final class RiseClickGuiModule extends ravens4.module.Module {
 }
 
 static final class RiseInterfaceModule extends ravens4.module.Module {
+    final ravens4.module.setting.impl.ButtonSetting watermark;
     final ravens4.module.setting.impl.ButtonSetting showCoordinates;
     final ravens4.module.setting.impl.ButtonSetting showPotionHud;
     final ravens4.module.setting.impl.ButtonSetting fpsCounter;
@@ -2663,6 +2625,7 @@ static final class RiseInterfaceModule extends ravens4.module.Module {
         this.registerSetting(this.backgroundAlpha = new ravens4.module.setting.impl.SliderSetting("Background Alpha", 110.0, 0.0, 255.0, 1.0));
         this.registerSetting(this.roundingRadius = new ravens4.module.setting.impl.SliderSetting("Rounding Radius", 5.0, 0.0, 20.0, 0.5));
         this.registerSetting(this.informationType = new ravens4.module.setting.impl.SliderSetting("Information Type", 0, INFO_TYPES));
+        this.registerSetting(this.watermark = new ravens4.module.setting.impl.ButtonSetting("Watermark", true));
         this.registerSetting(this.showCoordinates = new ravens4.module.setting.impl.ButtonSetting("Coordinates", false));
         this.registerSetting(this.showPotionHud = new ravens4.module.setting.impl.ButtonSetting("Potion HUD", false));
         this.registerSetting(this.fpsCounter = new ravens4.module.setting.impl.ButtonSetting("FPS Counter", false));
@@ -4683,7 +4646,6 @@ static final class InterfaceEngine {
 
     static void onRender2D(RiseInterfaceModule hud, float partialTicks) {
         if (client.getPlayer() == null) return;
-        if (!toggleOn(showHudSetting)) return;
         if (allEntries.isEmpty()) {
             rebuildEntries();
             onTick(hud);
@@ -4842,7 +4804,7 @@ static final class InterfaceEngine {
                         }
                     }
 
-                    if (toggleOn(showWatermarkSetting)) {
+                    if (watermarkOn()) {
                     if (isMc) {
                         RiseFont.of(32).drawShadow(CLIENT_NAME, 6.0, 6.0, activeTheme.firstColor().getRGB());
                     } else {
@@ -4873,7 +4835,7 @@ static final class InterfaceEngine {
                     }
                 }
 
-                if (toggleOn(showWatermarkSetting)) {
+                if (watermarkOn()) {
                 if (isMc) {
                     RiseFont.of(32).drawShadow(CLIENT_NAME, 6.0, 6.0, activeTheme.firstColor().getRGB());
                 } else {

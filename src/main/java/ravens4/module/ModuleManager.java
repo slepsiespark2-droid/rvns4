@@ -78,14 +78,12 @@ public class ModuleManager {
     public static Displace displace;
     public static Clutch clutch;
     public static ravens4.module.impl.movement.Fly fly;
-    public static ravens4.module.impl.client.Interface interfaceModule;
 
     public void register() {
         this.addModule(chatCommands = new ChatCommands());
         this.addModule(commandLine = new CommandLine());
         this.addModule(new Gui());
         this.addModule(new Settings());
-        this.addModule(interfaceModule = new ravens4.module.impl.client.Interface());
         this.addModule(new ravens4.module.impl.client.theme.ThemeSettings());
         String[] themeNames = ravens4.utility.ClientTheme.getNames();
         for (int i = 0; i < themeNames.length; i++) {

@@ -19,9 +19,18 @@ import java.util.List;
 
 public class Gui extends Module {
     private static final String[] GUI_FONT_OPTIONS = FontManager.getHudFontOptions();
-    private static final String[] MODES = new String[]{"ClickGui", "ClickGui2", "Panel"};
+    private static final String[] MODES = new String[]{"ClickGui", "ClickGui2", "Panel", "RClickGui"};
     private static final int MODE_CLICKGUI2 = 1;
     private static final int MODE_PANEL = 2;
+    private static final int MODE_RCLICKGUI = 3;
+
+    /** The Gui module (its key opens whichever GUI mode is selected). */
+    public static Gui instance;
+    /** Settings of RClickGui (the Rise "Modern" click GUI); also used by the DLayout3 HUD, which draws with the same fonts. */
+    public static SliderSetting riseSize;
+    public static SliderSetting riseFont;
+    public static ButtonSetting riseFontPrefix;
+    private final List<Setting> rClickGuiSettings = new ArrayList<Setting>();
 
     public static SliderSetting guiScale;
     public static SliderSetting font;
@@ -45,6 +54,7 @@ public class Gui extends Module {
 
     public Gui() {
         super("Gui", category.client, 54);
+        instance = this;
         this.registerSetting(mode = new SliderSetting("Mode", 0, MODES));
         this.registerSetting(guiScale = new SliderSetting("Gui scale", "x", 1.0, 0.5, 2.0, 0.01));
         this.registerSetting(font = new SliderSetting("Font", 0, GUI_FONT_OPTIONS));
@@ -72,6 +82,16 @@ public class Gui extends Module {
         for (Setting setting : panelSettings) {
             setting.visible = false; // shown by guiUpdate once the Panel mode is selected
         }
+        // RClickGui: Size 100 is the normal 400x300 window, 1 is 30% of it
+        this.registerSetting(riseSize = new SliderSetting("Size", 100.0, 1.0, 100.0, 1.0));
+        this.registerSetting(riseFont = new SliderSetting("Rise font", 0, GUI_FONT_OPTIONS));
+        this.registerSetting(riseFontPrefix = new ButtonSetting("Font prefix", false));
+        rClickGuiSettings.add(riseSize);
+        rClickGuiSettings.add(riseFont);
+        rClickGuiSettings.add(riseFontPrefix);
+        for (Setting setting : rClickGuiSettings) {
+            setting.visible = false;
+        }
         clickGuiSettings.add(guiScale);
         clickGuiSettings.add(font);
         clickGuiSettings.add(backgroundBlur);
@@ -94,10 +114,14 @@ public class Gui extends Module {
     public void guiUpdate() {
         boolean clickGui2 = isClickGui2();
         boolean panel = isPanel();
+        boolean rise = isRClickGui();
         for (Setting setting : clickGuiSettings) {
             // the background blur is shared with the Panel mode, everything else only belongs to the normal ClickGui
             boolean accentOnly = setting == backgroundBlur;
-            setting.setVisible(accentOnly ? !clickGui2 : (!clickGui2 && !panel), this);
+            setting.setVisible(accentOnly ? (!clickGui2 && !rise) : (!clickGui2 && !panel && !rise), this);
+        }
+        for (Setting setting : rClickGuiSettings) {
+            setting.setVisible(rise, this);
         }
         for (Setting setting : clickGui2Settings) {
             setting.setVisible(clickGui2, this);
@@ -109,6 +133,10 @@ public class Gui extends Module {
 
     public static boolean isClickGui2() {
         return mode != null && (int) mode.getInput() == MODE_CLICKGUI2;
+    }
+
+    public static boolean isRClickGui() {
+        return mode != null && (int) mode.getInput() == MODE_RCLICKGUI;
     }
 
     public static boolean isPanel() {
@@ -132,6 +160,11 @@ public class Gui extends Module {
         else if (isPanel()) {
             if (Utils.nullCheck()) {
                 mc.displayGuiScreen(PanelClickGui.get());
+            }
+        }
+        else if (isRClickGui()) {
+            if (Utils.nullCheck()) {
+                ravens4.module.impl.client.rise.Interface.openFromGui();
             }
         }
         else if (Utils.nullCheck() && mc.currentScreen != Raven.clickGui) {

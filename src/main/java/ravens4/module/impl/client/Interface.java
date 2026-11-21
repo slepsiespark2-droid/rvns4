@@ -11,7 +11,6 @@ import ravens4.event.AttackEvent;
 import ravens4.event.GuiUpdateEvent;
 import ravens4.event.KeyPressEvent;
 import ravens4.event.PreUpdateEvent;
-import ravens4.module.Module;
 import ravens4.script.ScriptDefaults;
 import ravens4.script.model.Entity;
 import ravens4.utility.Utils;
@@ -20,78 +19,38 @@ import ravens4.mixin.impl.accessor.IAccessorEntityRenderer;
 import ravens4.mixin.impl.accessor.IAccessorMinecraft;
 
 /**
- * Rise interface module: click GUI, target info, FPS/BPS counters and themes.
- * The UI itself lives in {@link ravens4.module.impl.client.rise.Interface}; this class owns its lifecycle and forwards events.
+ * Runs the Rise interface (RClickGui, the DLayout3 HUD, notifications...). It is not a module: it starts once with
+ * the client and forwards the game events to the interface code in {@link ravens4.module.impl.client.rise.Interface}.
  */
-public class Interface extends Module {
+public final class Interface {
+    private static final Interface INSTANCE = new Interface();
+
     private final ravens4.module.impl.client.rise.Interface script = new ravens4.module.impl.client.rise.Interface();
     private final Events events = new Events();
-    private boolean eventsRegistered = false;
+    private boolean started = false;
 
-    public Interface() {
-        super("Interface", category.client);
-        // not a switch any more: the interface (click GUI, DLayout3 HUD, notifications...) is always running
-        this.canBeEnabled = false;
+    private Interface() {
     }
 
-    /** Registers the script's settings. Called once after ModuleManager.register() and ScriptDefaults.reloadModules(). */
-    public void init() {
+    /** Starts the interface for good; called once after ModuleManager.register() (see Raven init). */
+    public static void start() {
+        INSTANCE.init();
+    }
+
+    private void init() {
+        if (this.started) {
+            return;
+        }
+        this.started = true;
         try {
             ScriptDefaults.reloadModules();
             script.onLoad();
-            activate();
-        }
-        catch (Throwable t) {
-            t.printStackTrace();
-            Utils.sendMessage("&cInterface failed to load, check your logs");
-        }
-    }
-
-    /** Starts the interface for good: registers its events and creates the DLayout3 engine and its settings. */
-    private void activate() {
-        if (this.eventsRegistered) {
-            return;
-        }
-        MinecraftForge.EVENT_BUS.register(events);
-        this.eventsRegistered = true;
-        this.setEnabled(true);
-        try {
+            MinecraftForge.EVENT_BUS.register(this.events);
             script.onEnable();
         }
         catch (Throwable t) {
             t.printStackTrace();
         }
-    }
-
-    @Override
-    public void enable() {
-    }
-
-    @Override
-    public void disable() {
-    }
-
-    @Override
-    public void onEnable() {
-        activate();
-    }
-
-    @Override
-    public void onDisable() {
-        try {
-            script.onDisable();
-        }
-        catch (Throwable t) {
-            t.printStackTrace();
-        }
-        if (eventsRegistered) {
-            MinecraftForge.EVENT_BUS.unregister(events);
-            eventsRegistered = false;
-        }
-    }
-
-    public ravens4.module.impl.client.rise.Interface getScript() {
-        return script;
     }
 
     public class Events {

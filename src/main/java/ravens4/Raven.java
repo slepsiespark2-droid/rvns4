@@ -101,7 +101,7 @@ public class Raven {
         clickGui = new ClickGui();
         profileManager = new ProfileManager();
         ScriptDefaults.reloadModules();
-        ModuleManager.interfaceModule.init();
+        ravens4.module.impl.client.Interface.start();
         ModuleManager.fly.init();
         scriptManager.loadScripts();
         profileManager.loadProfiles();

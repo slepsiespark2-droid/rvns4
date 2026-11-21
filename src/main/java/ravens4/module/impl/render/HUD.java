@@ -90,6 +90,8 @@ public class HUD extends Module {
         boolean[] before = new boolean[n];
         for (int i = 0; i < n; i++) {
             before[i] = this.dlayout3Settings.get(i).visible;
+            // start from "shown": the Interface rules only name the settings that are conditional
+            this.dlayout3Settings.get(i).visible = true;
         }
         ravens4.module.impl.client.rise.Interface.computeDLayout3Visibility();
         boolean[] wanted = new boolean[n];
