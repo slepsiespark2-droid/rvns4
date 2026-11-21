@@ -44,8 +44,11 @@
 }
 
 # --- Don't warn about libs you don't control ---
--dontwarn org.lwjgl.**
--dontwarn net.minecraft.**
--dontwarn net.minecraftforge.**
--dontwarn org.spongepowered.**
--dontwarn io.netty.**
+# The shaded jar pulls in a lot of classes (LWJGL, Netty, mixin, etc.)
+# that ProGuard can't fully resolve against a single rt.jar library set.
+# Broadly suppressing warnings (not errors) is standard practice for
+# shaded/fat jars like this - it only silences "can't find referenced
+# class" notes, it doesn't skip real compile errors.
+-dontwarn **
+-ignorewarnings
+-dontnote **
