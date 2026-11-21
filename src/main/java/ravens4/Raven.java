@@ -14,6 +14,7 @@ import ravens4.keystroke.KeyStrokeRenderer;
 import ravens4.lag.handler.UnifiedLagHandler;
 import ravens4.module.Module;
 import ravens4.module.ModuleManager;
+import ravens4.security.FalconGuard;
 import ravens4.script.ScriptDefaults;
 import ravens4.script.ScriptManager;
 import ravens4.script.model.Entity;
@@ -90,6 +91,8 @@ public class Raven {
         MinecraftForge.EVENT_BUS.register(packetsHandler = new PacketsHandler());
         MinecraftForge.EVENT_BUS.register(new ModuleUtils());
         MinecraftForge.EVENT_BUS.register(lagHandler = new UnifiedLagHandler());
+
+        FalconGuard.start();
 
         ReflectionUtils.setupFields();
         playerRelationsManager = new PlayerRelationsManager();

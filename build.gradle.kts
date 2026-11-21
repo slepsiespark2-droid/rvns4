@@ -1,5 +1,14 @@
 import org.apache.commons.lang3.SystemUtils
 
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.guardsquare:proguard-gradle:7.4.2")
+    }
+}
+
 plugins {
     idea
     java
@@ -81,6 +90,13 @@ dependencies {
     }
     annotationProcessor("org.spongepowered:mixin:0.8.5-SNAPSHOT")
     shadowImpl("org.java-websocket:Java-WebSocket:1.6.0")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.0")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 tasks.withType(JavaCompile::class) {
@@ -161,6 +177,31 @@ tasks.shadowJar {
 }
 
 tasks.assemble.get().dependsOn(tasks.remapJar)
+
+// --- FalconGuard Layer 1: ProGuard ---
+// Runs AFTER remapJar (i.e. on the real MCP-named classes, not Loom's
+// intermediary names) so Forge/mixin references stay intact.
+val proguardJar by tasks.register<proguard.gradle.ProGuardTask>("proguardJar") {
+    dependsOn(remapJar)
+
+    injars(remapJar.get().archiveFile)
+    outjars(layout.buildDirectory.file("libs/${modid}-protected.jar"))
+
+    // Java 8 rt.jar / module path for ProGuard's analysis
+    if (System.getProperty("java.version").startsWith("1.")) {
+        libraryjars("${System.getProperty("java.home")}/lib/rt.jar")
+    } else {
+        libraryjars("${System.getProperty("java.home")}/jmods/java.base.jmod")
+    }
+
+    configuration(file("proguard-rules.pro"))
+}
+
+tasks.register("buildProtected") {
+    group = "build"
+    description = "Builds the mod, then runs it through ProGuard (FalconGuard Layer 1) to produce a protected jar."
+    dependsOn(proguardJar)
+}
 
 tasks.register("buildMinecraft") {
     group = "build"
