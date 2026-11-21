@@ -82,6 +82,13 @@ public class Scaffold extends Module {
 
     private final SliderSetting mode;
     private final KeepYMode keepY;
+    /** Keep-y styles: Lazy is the ordinary Keep-y, Normal is the keep_y script. */
+    private static final String[] KEEP_Y_STYLES = new String[]{"Lazy", "Normal"};
+    private static final int STYLE_NORMAL = 1;
+    private final SliderSetting keepYStyle;
+    private final ravens4.module.impl.player.scaffold.KeepYNormal keepYNormal = new ravens4.module.impl.player.scaffold.KeepYNormal();
+    private final java.util.List<ravens4.module.setting.Setting> normalSettings;
+    private int activeStyle = -1;
     /** The mode whose logic is currently running (-1 while the module is off); event handlers route on this. */
     private int activeMode = -1;
 
@@ -100,6 +107,8 @@ public class Scaffold extends Module {
     public Scaffold() {
         super("Scaffold", category.player);
         this.registerSetting(mode = new SliderSetting("Mode", MODE_LEGIT_TELLY, MODES));
+        this.registerSetting(keepYStyle = new SliderSetting("Style", 0, KEEP_Y_STYLES));
+        keepYStyle.visible = false;
         this.registerSetting(autoSwap = new ButtonSetting("Auto swap", true));
         this.registerSetting(disableGuard = new ButtonSetting("Disable Guard", true));
         this.registerSetting(showActivationBounds = new ButtonSetting("Show activation bounds", false));
@@ -119,6 +128,11 @@ public class Scaffold extends Module {
 
         this.keepY = new KeepYMode(this);
         this.keepY.hideSettings();
+
+        this.normalSettings = this.keepYNormal.load(this);
+        for (ravens4.module.setting.Setting setting : this.normalSettings) {
+            setting.visible = false;
+        }
     }
 
     boolean armed = false;
@@ -308,14 +322,34 @@ public class Scaffold extends Module {
 
     @SubscribeEvent
     public void onClientRotation(ClientRotationEvent e) {
-        if (!this.isEnabled() || !isKeepY()) return;
+        if (!this.isEnabled() || !isKeepYLazy()) return;
         keepY.onClientRotation(e);
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onMouse(MouseEvent e) {
         if (!this.isEnabled() || !isKeepY()) return;
+        if (isKeepYNormal()) {
+            if (!keepYNormal.onMouse(e.button, e.buttonstate, 0, 0)) {
+                e.setCanceled(true);
+            }
+            return;
+        }
         keepY.onMouse(e);
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public void onPrePlayerInput(ravens4.event.PrePlayerInputEvent e) {
+        if (!this.isEnabled() || !isKeepYNormal()) return;
+        ravens4.script.model.MovementInput input = new ravens4.script.model.MovementInput(e, (byte) 0);
+        keepYNormal.onPrePlayerInput(input);
+        if (e.isEquals(input)) {
+            return;
+        }
+        e.setForward(input.forward);
+        e.setSneak(input.sneak);
+        e.setJump(input.jump);
+        e.setStrafe(input.strafe);
     }
 
     @SubscribeEvent
@@ -332,7 +366,12 @@ public class Scaffold extends Module {
         if (!this.isEnabled()) return;
         syncMode();
         if (isKeepY()) {
-            keepY.onPreUpdate();
+            if (isKeepYNormal()) {
+                keepYNormal.onPreUpdate();
+            }
+            else {
+                keepY.onPreUpdate();
+            }
             return;
         }
         enforceGuardDisabledForRun();
@@ -870,10 +909,30 @@ public class Scaffold extends Module {
         return activeMode == MODE_KEEP_Y;
     }
 
+    private int selectedStyle() {
+        return Math.max(0, Math.min(KEEP_Y_STYLES.length - 1, (int) keepYStyle.getInput()));
+    }
+
+    /** Keep-y with the "Lazy" style (the ordinary Keep-y). */
+    boolean isKeepYLazy() {
+        return isKeepY() && activeStyle != STYLE_NORMAL;
+    }
+
+    /** Keep-y with the "Normal" style (the keep_y script). */
+    boolean isKeepYNormal() {
+        return isKeepY() && activeStyle == STYLE_NORMAL;
+    }
+
     private void startMode(int newMode) {
         activeMode = newMode;
         if (newMode == MODE_KEEP_Y) {
-            keepY.onEnable();
+            activeStyle = selectedStyle();
+            if (activeStyle == STYLE_NORMAL) {
+                keepYNormal.onEnable();
+            }
+            else {
+                keepY.onEnable();
+            }
         }
         else {
             enableLegitTelly();
@@ -882,7 +941,13 @@ public class Scaffold extends Module {
 
     private void stopActiveMode() {
         if (activeMode == MODE_KEEP_Y) {
-            keepY.onDisable();
+            if (activeStyle == STYLE_NORMAL) {
+                keepYNormal.onDisable();
+            }
+            else {
+                keepY.onDisable();
+            }
+            activeStyle = -1;
         }
         else if (activeMode == MODE_LEGIT_TELLY) {
             disableLegitTelly();
@@ -893,7 +958,7 @@ public class Scaffold extends Module {
     /** Switches over cleanly if the mode was changed while Scaffold is on. */
     private void syncMode() {
         int selected = selectedMode();
-        if (selected != activeMode) {
+        if (selected != activeMode || (selected == MODE_KEEP_Y && selectedStyle() != activeStyle)) {
             stopActiveMode();
             startMode(selected);
         }
@@ -914,7 +979,13 @@ public class Scaffold extends Module {
         backfillGap.setVisible(legit, this);
         flatStart.setVisible(legit, this);
         speedTellyKey.setVisible(legit, this);
-        keepY.setSettingsVisible(!legit);
+        boolean keepYMode = !legit;
+        boolean normalStyle = selectedStyle() == STYLE_NORMAL;
+        keepYStyle.setVisible(keepYMode, this);
+        keepY.setSettingsVisible(keepYMode && !normalStyle);
+        for (ravens4.module.setting.Setting setting : this.normalSettings) {
+            setting.setVisible(keepYMode && normalStyle, this);
+        }
     }
 
     void printStatus(String message) {
@@ -1469,7 +1540,9 @@ public class Scaffold extends Module {
     public void onPostPlayerInput(PostPlayerInputEvent e) {
         if (!this.isEnabled()) return;
         if (isKeepY()) {
-            keepY.onPostPlayerInput(e);
+            if (isKeepYLazy()) {
+                keepY.onPostPlayerInput(e);
+            }
             return;
         }
         if (!isLegitTelly()) return;
