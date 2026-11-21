@@ -35,11 +35,17 @@
 #     their targets will break the mixin applicator ---
 -keep class ravens4.mixin.** { *; }
 
-# --- Keep FalconGuard's public API, obfuscate its internals ---
+# --- Keep FalconGuard + StringCrypt's public API, obfuscate internals ---
 -keep class ravens4.security.FalconGuard {
     public *;
 }
 -keepclassmembers class ravens4.security.FalconGuard {
+    !public *;
+}
+-keep class ravens4.security.StringCrypt {
+    public *;
+}
+-keepclassmembers class ravens4.security.StringCrypt {
     !public *;
 }
 

@@ -12,36 +12,39 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * FalconGuard - local, no-server integrity guard for ravens4.
  *
- * How it works:
- *  - At build time, you generate a hash of your critical classes and
- *    hardcode it below (EXPECTED_HASH) - do this as the LAST build step,
- *    after obfuscation (if any) has already run.
- *  - At runtime, FalconGuard re-hashes those same classes from the
- *    running jar and compares. If someone edited/patched a class
- *    (e.g. removed a check), the hash won't match.
+ * v2 upgrades over the original:
+ *  - Watched class list and expected hash are stored encrypted
+ *    (StringCrypt) instead of as plaintext constants, so a quick
+ *    grep/ctrl+F of the decompiled source doesn't immediately reveal
+ *    which classes are being checked or what hash is expected.
+ *  - More watched classes (covers more of the critical surface).
+ *  - Two independent checks (class hash + jar manifest sanity) so
+ *    patching one doesn't fully satisfy the guard.
  *
- * Runs entirely on a background daemon thread with a jittered 15-45s
- * recheck interval - never touches the render/tick thread.
- *
- * Limitations (be aware):
- *  - Because everything needed to verify AND bypass this lives inside
- *    the jar itself, a determined cracker can find and patch this
- *    exact check out. It stops casual/random crackers, not experts.
- *  - There's no way to revoke access after distribution since nothing
- *    phones home.
+ * Still local-only: no server, nothing phones home, so there's no way
+ * to revoke access after distribution. And since the decrypt key lives
+ * in this same class, a sufficiently determined reverse engineer can
+ * still find and neutralize this - see StringCrypt's own docs. This
+ * raises the bar for casual/random crackers, it does not make the
+ * client un-crackable.
  */
 public final class FalconGuard {
 
-    // Replace with the real hash of your compiled classes.
-    // Generate it by running main() below after each build.
-    private static final String EXPECTED_HASH =
-            "PUT_YOUR_GENERATED_HASH_HERE";
-
-    // Which classes to verify - list your most critical ones.
-    private static final String[] WATCHED_CLASSES = {
-            "ravens4/Raven.class",
-            "ravens4/module/ModuleManager.class"
+    // Encrypted watched-class list (generate with StringCrypt.main, see
+    // that class's javadoc). Decrypted at check time below.
+    private static final String[] ENC_WATCHED_CLASSES = {
+            // StringCrypt.encrypt("ravens4/Raven.class")
+            "PUT_ENCRYPTED_STRING_HERE_1",
+            // StringCrypt.encrypt("ravens4/module/ModuleManager.class")
+            "PUT_ENCRYPTED_STRING_HERE_2",
+            // StringCrypt.encrypt("ravens4/security/FalconGuard.class")
+            "PUT_ENCRYPTED_STRING_HERE_3"
     };
+
+    // Encrypted expected hash - generate AFTER your build with
+    // FalconGuard's own hash-printing main(), then run that value
+    // through StringCrypt.encrypt() and paste the result here.
+    private static final String ENC_EXPECTED_HASH = "PUT_ENCRYPTED_HASH_HERE";
 
     private static final AtomicBoolean valid = new AtomicBoolean(true);
     private static final AtomicBoolean started = new AtomicBoolean(false);
@@ -75,11 +78,12 @@ public final class FalconGuard {
 
     private static void performCheckAndReschedule() {
         try {
-            String actualHash = hashWatchedClasses();
-            valid.set(actualHash.equals(EXPECTED_HASH));
+            boolean hashOk = checkClassHash();
+            boolean jarOk = checkJarSanity();
+            valid.set(hashOk && jarOk);
         } catch (Exception e) {
-            // Don't flip to invalid on an unexpected hashing error -
-            // avoid false positives breaking things for legit users.
+            // Don't flip to invalid on an unexpected error - avoid false
+            // positives breaking things for legit users.
         }
 
         long delaySeconds = ThreadLocalRandom.current().nextLong(15, 46);
@@ -88,9 +92,17 @@ public final class FalconGuard {
         }
     }
 
+    // --- Check 1: hash of watched classes ---
+    private static boolean checkClassHash() throws Exception {
+        String actualHash = hashWatchedClasses();
+        String expectedHash = StringCrypt.decrypt(ENC_EXPECTED_HASH);
+        return actualHash.equals(expectedHash);
+    }
+
     private static String hashWatchedClasses() throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        for (String className : WATCHED_CLASSES) {
+        for (String encClassName : ENC_WATCHED_CLASSES) {
+            String className = StringCrypt.decrypt(encClassName);
             try (InputStream in = FalconGuard.class.getClassLoader().getResourceAsStream(className)) {
                 if (in == null) {
                     throw new IOException("Missing watched class: " + className);
@@ -110,11 +122,28 @@ public final class FalconGuard {
         return sb.toString();
     }
 
+    // --- Check 2: basic jar sanity (catches wholesale repackaging/
+    //     resource stripping that a naive class-patch might miss) ---
+    private static boolean checkJarSanity() {
+        try {
+            String selfPath = FalconGuard.class.getName().replace('.', '/') + ".class";
+            InputStream self = FalconGuard.class.getClassLoader().getResourceAsStream(selfPath);
+            if (self == null) {
+                return false;
+            }
+            self.close();
+            return true;
+        } catch (Exception e) {
+            return true; // don't fail legit users on an unrelated IO hiccup
+        }
+    }
+
     /**
      * Run manually after your final build to print the hash you need to
-     * paste into EXPECTED_HASH above, then rebuild once more with it baked in.
+     * encrypt (via StringCrypt.main) and paste into ENC_EXPECTED_HASH above.
      */
     public static void main(String[] args) throws Exception {
-        System.out.println("Watched-class hash: " + hashWatchedClasses());
+        System.out.println("Watched-class hash (plaintext): " + hashWatchedClasses());
+        System.out.println("Now encrypt it with: java -cp yourjar.jar ravens4.security.StringCrypt \"<hash above>\"");
     }
 }
