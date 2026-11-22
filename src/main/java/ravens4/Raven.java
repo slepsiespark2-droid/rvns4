@@ -15,6 +15,7 @@ import ravens4.lag.handler.UnifiedLagHandler;
 import ravens4.module.Module;
 import ravens4.module.ModuleManager;
 import ravens4.security.FalconGuard;
+import ravens4.security.TripWire;
 import ravens4.script.ScriptDefaults;
 import ravens4.script.ScriptManager;
 import ravens4.script.model.Entity;
@@ -93,6 +94,9 @@ public class Raven {
         MinecraftForge.EVENT_BUS.register(lagHandler = new UnifiedLagHandler());
 
         FalconGuard.start();
+        FalconGuard.registerTripWire(TripWire.randomModuleToggle());
+        FalconGuard.registerTripWire(TripWire.tinyRenderStutter());
+        FalconGuard.registerExtremeTripWire(TripWire.extremeModuleWipe());
 
         ReflectionUtils.setupFields();
         playerRelationsManager = new PlayerRelationsManager();

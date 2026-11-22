@@ -35,6 +35,21 @@
 #     their targets will break the mixin applicator ---
 -keep class ravens4.mixin.** { *; }
 
+# --- Keep the Mixin FRAMEWORK library itself untouched ---
+# Forge's tweaker chain loads org.spongepowered.asm.launch.MixinTweaker
+# by its exact class name (referenced from the jar's manifest /
+# FMLTweaker config), not just by reflection inside your own code.
+# Renaming anything under org.spongepowered.asm.** breaks launch
+# entirely with a ClassNotFoundException, since the loader is looking
+# for that literal name and it no longer exists under it.
+-keep class org.spongepowered.asm.** { *; }
+-keepclassmembers class org.spongepowered.asm.** { *; }
+
+# --- Same reasoning for other tweaker-chain / reflection-sensitive
+#     third-party libs bundled into the shaded jar ---
+-keep class org.java_websocket.** { *; }
+-dontwarn org.java_websocket.**
+
 # --- Keep FalconGuard + StringCrypt's public API, obfuscate internals ---
 -keep class ravens4.security.FalconGuard {
     public *;
@@ -47,6 +62,22 @@
 }
 -keepclassmembers class ravens4.security.StringCrypt {
     !public *;
+}
+
+# --- Keep FalconGuardNative's native method signature intact ---
+# ProGuard must never rename a class/method bound by JNI, since the
+# native .so/.dll/.dylib looks up this exact name
+# (Java_ravens4_security_FalconGuardNative_checkHash) at load time.
+-keep class ravens4.security.FalconGuardNative {
+    public *;
+    private native boolean checkHash(java.lang.String);
+}
+-keepclassmembers class ravens4.security.FalconGuardNative {
+    !public !native *;
+}
+
+-keep class ravens4.security.TripWire {
+    public *;
 }
 
 # --- Don't warn about libs you don't control ---

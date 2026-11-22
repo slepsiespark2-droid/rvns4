@@ -1,0 +1,75 @@
+name: Build FalconGuard Natives
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_hash:
+        description: 'The SHA-256 hash to bake into the native lib (from FalconGuard.main() output)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            outfile: libfalconguard.so
+          - os: windows-latest
+            platform: windows
+            outfile: falconguard.dll
+          - os: macos-latest
+            platform: macos
+            outfile: libfalconguard.dylib
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK (for jni.h headers)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Compile native lib (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          mkdir -p src/main/resources/natives/linux
+          gcc -shared -fPIC \
+            -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" \
+            -DFALCONGUARD_HASH="\"${{ inputs.expected_hash }}\"" \
+            natives/falconguard.c \
+            -o src/main/resources/natives/linux/${{ matrix.outfile }}
+
+      - name: Compile native lib (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          mkdir -p src/main/resources/natives/macos
+          gcc -shared -fPIC \
+            -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/darwin" \
+            -DFALCONGUARD_HASH="\"${{ inputs.expected_hash }}\"" \
+            natives/falconguard.c \
+            -o src/main/resources/natives/macos/${{ matrix.outfile }}
+
+      - name: Set up MSVC (cl.exe) toolchain
+        if: matrix.platform == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Compile native lib (Windows)
+        if: matrix.platform == 'windows'
+        shell: cmd
+        run: |
+          mkdir src\main\resources\natives\windows
+          cl /LD /I"%JAVA_HOME%\include" /I"%JAVA_HOME%\include\win32" ^
+            /DFALCONGUARD_HASH=\"${{ inputs.expected_hash }}\" ^
+            natives\falconguard.c ^
+            /Fe:src\main\resources\natives\windows\${{ matrix.outfile }}
+
+      - name: Upload native lib
+        uses: actions/upload-artifact@v4
+        with:
+          name: falconguard-native-${{ matrix.platform }}
+          path: src/main/resources/natives/${{ matrix.platform }}/${{ matrix.outfile }}

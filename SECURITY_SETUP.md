@@ -42,8 +42,22 @@ replacing `PUT_ENCRYPTED_HASH_HERE` in `ENC_EXPECTED_HASH`.
 `isValid()` to `false` within 15–45s if any watched class is modified
 after this point.
 
+## Step 6 (optional) — Arm Layer 3 (native)
+Layer 3 ships disabled (`ENABLE_NATIVE_LAYER = false`) until you've built
+native libraries for all 3 platforms. Full instructions: `natives/NATIVE_BUILD.md`.
+Short version:
+1. Go to your repo's Actions tab → "Build FalconGuard Natives" → Run workflow
+2. Paste in the same plaintext hash from Step 3 above
+3. Download the 3 resulting artifacts, place them at
+   `src/main/resources/natives/{linux,macos,windows}/...`
+4. Commit those binary files
+5. In `FalconGuard.java`, flip `ENABLE_NATIVE_LAYER` to `true`
+6. Rebuild
+
 ## Important
-Repeat steps 1–5 **every time you change** `Raven.java`, `ModuleManager.java`,
+Repeat steps 1–6 **every time you change** `Raven.java`, `ModuleManager.java`,
 or `FalconGuard.java` itself — their compiled bytecode changes, so the hash
 from a previous build will no longer match and FalconGuard will (correctly)
-flag your own legitimate new build as tampered.
+flag your own legitimate new build as tampered. If Layer 3 is armed, you
+must also rebuild the native libs (step 6) whenever the hash changes, since
+the old binaries would be checking against a stale value.
