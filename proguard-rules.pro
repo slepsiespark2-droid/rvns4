@@ -50,18 +50,13 @@
 -keep class org.java_websocket.** { *; }
 -dontwarn org.java_websocket.**
 
-# --- Keep FalconGuard + StringCrypt's public API, obfuscate internals ---
+# --- Keep FalconGuard + StringCrypt's public API; internals obfuscate
+#     automatically since they're not explicitly kept here ---
 -keep class ravens4.security.FalconGuard {
     public *;
 }
--keepclassmembers class ravens4.security.FalconGuard {
-    !public *;
-}
 -keep class ravens4.security.StringCrypt {
     public *;
-}
--keepclassmembers class ravens4.security.StringCrypt {
-    !public *;
 }
 
 # --- Keep FalconGuardNative's native method signature intact ---
@@ -71,9 +66,6 @@
 -keep class ravens4.security.FalconGuardNative {
     public *;
     private native boolean checkHash(java.lang.String);
-}
--keepclassmembers class ravens4.security.FalconGuardNative {
-    !public !native *;
 }
 
 -keep class ravens4.security.TripWire {
