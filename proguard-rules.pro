@@ -13,14 +13,30 @@
 # ProGuard. Safer to just obfuscate names, not delete anything, unless
 # you want to spend time writing -keep rules for every reflective path.
 
--repackageclasses ''
--allowaccessmodification
--flattenpackagehierarchy ''
+# -repackageclasses, -flattenpackagehierarchy, and -allowaccessmodification
+# removed: these aggressively move/merge classes across package
+# boundaries and relax access checks, which has repeatedly broken
+# mixin-woven bytecode in this project (multiple VerifyErrors even
+# after keeping net.minecraft/forge/lwjgl). Mixin weaving happens at
+# RUNTIME (Mixin's launch-time transformer re-reads class bytecode and
+# injects it into the target), so anything that changes package layout
+# or access modifiers between build and that weave step is risky here.
+# Dropping these three is a meaningfully weaker Layer 1 (names still
+# get shortened, but classes stay in their original packages and
+# access levels are untouched) in exchange for actually launching.
 -renamesourcefileattribute ""
 -keepattributes !SourceFile,!LineNumberTable,*Annotation*,Signature
 
-# --- Keep your mod entry point reachable by Forge ---
--keep class ravens4.Raven {
+# --- Keep your ENTIRE codebase untouched for now ---
+# Mixin-woven bytecode can reference any ravens4 class by exact type
+# (casts, field types, method params) - not just the mixin classes
+# themselves. Renaming any of those causes the same VerifyError we've
+# been chasing. This is a meaningfully weaker Layer 1 than originally
+# planned (your own code isn't renamed at all right now), but it's the
+# safe baseline to get an actually-launching protected build. Once this
+# launches clean, we can try narrowing this back down to specific
+# "known safe to rename" classes one at a time.
+-keep class ravens4.** {
     public *;
 }
 
@@ -29,11 +45,6 @@
 -keepclassmembers class * {
     @net.minecraftforge.fml.common.Mod.EventHandler *;
 }
-
-# --- Keep mixins untouched - Mixin matches classes/methods by exact
-#     name against mixins.raven.json, so obfuscating mixin classes or
-#     their targets will break the mixin applicator ---
--keep class ravens4.mixin.** { *; }
 
 # --- Keep the Mixin FRAMEWORK library itself untouched ---
 # Forge's tweaker chain loads org.spongepowered.asm.launch.MixinTweaker
@@ -50,27 +61,11 @@
 -keep class org.java_websocket.** { *; }
 -dontwarn org.java_websocket.**
 
-# --- Keep FalconGuard + StringCrypt's public API; internals obfuscate
-#     automatically since they're not explicitly kept here ---
--keep class ravens4.security.FalconGuard {
-    public *;
-}
--keep class ravens4.security.StringCrypt {
-    public *;
-}
-
-# --- Keep FalconGuardNative's native method signature intact ---
-# ProGuard must never rename a class/method bound by JNI, since the
-# native .so/.dll/.dylib looks up this exact name
-# (Java_ravens4_security_FalconGuardNative_checkHash) at load time.
--keep class ravens4.security.FalconGuardNative {
-    public *;
-    private native boolean checkHash(java.lang.String);
-}
-
--keep class ravens4.security.TripWire {
-    public *;
-}
+# Note: FalconGuard, StringCrypt, FalconGuardNative, TripWire, and all
+# mixin classes are already covered by the broad `ravens4.**` keep
+# above - no need for separate rules for them right now. (Once we get
+# a clean launch, we can look at carving out narrower obfuscation for
+# specific classes that nothing else references by exact type.)
 
 # --- NEVER rename Minecraft/Forge classes ---
 # Mixins are woven into Minecraft's bytecode at compile/remap time,
@@ -79,8 +74,7 @@
 # later renames those classes, the already-woven mixin bytecode still
 # points at the old names, and the JVM verifier rejects it at launch
 # with a VerifyError ("Bad type on operand stack"). Keep the ENTIRE
-# Minecraft/Forge/LWJGL surface completely untouched - only your own
-# ravens4.** code should ever be renamed.
+# Minecraft/Forge/LWJGL surface completely untouched.
 -keep class net.minecraft.** { *; }
 -keep class net.minecraftforge.** { *; }
 -keep class org.lwjgl.** { *; }
