@@ -1,6 +1,5 @@
 package ravens4.mixin.impl.entity;
 
-import com.google.common.collect.Maps;
 import ravens4.event.JumpEvent;
 import ravens4.event.PreMotionEvent;
 import ravens4.event.PrePlayerMovementInputEvent;
@@ -24,25 +23,20 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.util.Map;
-
 @Mixin(EntityLivingBase.class)
 public abstract class MixinEntityLivingBase extends Entity {
     public MixinEntityLivingBase(World worldIn) {
         super(worldIn);
     }
 
-    private final Map<Integer, PotionEffect> activePotionsMap = Maps.newHashMap();
-
-    @Shadow
-    public PotionEffect getActivePotionEffect(Potion potionIn) {
-        return this.activePotionsMap.get(Integer.valueOf(potionIn.id));
-    }
-
-    @Shadow
-    public boolean isPotionActive(Potion potionIn) {
-        return this.activePotionsMap.containsKey(Integer.valueOf(potionIn.id));
-    }
+    // NOTE: getActivePotionEffect(Potion) and isPotionActive(Potion) used to
+    // be declared here as @Shadow stubs. They are PUBLIC methods on vanilla
+    // EntityLivingBase, so @Shadow (meant for members not otherwise
+    // reachable) isn't actually needed - it was failing refmap resolution
+    // at runtime ("@Shadow method a ... was not located in the target
+    // class"). Calling them via a direct cast to EntityLivingBase below
+    // sidesteps that refmap lookup entirely, since at weave time `this`
+    // genuinely IS an EntityLivingBase instance.
 
     @Shadow
     public float rotationYawHead;
@@ -97,6 +91,7 @@ public abstract class MixinEntityLivingBase extends Entity {
 
     @Overwrite
     protected void jump() {
+        EntityLivingBase self = (EntityLivingBase) (Object) this;
         JumpEvent jumpEvent = new JumpEvent(this.getJumpUpwardsMotion(), this.rotationYaw, this.isSprinting());
         ravens4.bus.MinecraftForge.EVENT_BUS.post(jumpEvent);
         if (jumpEvent.isCanceled()) {
@@ -105,8 +100,8 @@ public abstract class MixinEntityLivingBase extends Entity {
 
         this.motionY = jumpEvent.getMotionY();
 
-        if (this.isPotionActive(Potion.jump)) {
-            this.motionY += (float) (this.getActivePotionEffect(Potion.jump).getAmplifier() + 1) * 0.1F;
+        if (self.isPotionActive(Potion.jump)) {
+            this.motionY += (float) (self.getActivePotionEffect(Potion.jump).getAmplifier() + 1) * 0.1F;
         }
 
         if (jumpEvent.applySprint()) {
