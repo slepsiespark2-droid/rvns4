@@ -72,6 +72,21 @@
     public *;
 }
 
+# --- NEVER rename Minecraft/Forge classes ---
+# Mixins are woven into Minecraft's bytecode at compile/remap time,
+# BEFORE ProGuard runs - that woven bytecode hardcodes exact type
+# references (e.g. net.minecraft.util.IChatComponent). If ProGuard
+# later renames those classes, the already-woven mixin bytecode still
+# points at the old names, and the JVM verifier rejects it at launch
+# with a VerifyError ("Bad type on operand stack"). Keep the ENTIRE
+# Minecraft/Forge/LWJGL surface completely untouched - only your own
+# ravens4.** code should ever be renamed.
+-keep class net.minecraft.** { *; }
+-keep class net.minecraftforge.** { *; }
+-keep class org.lwjgl.** { *; }
+-keepnames class net.minecraft.** { *; }
+-keepnames class net.minecraftforge.** { *; }
+
 # --- Don't warn about libs you don't control ---
 # The shaded jar pulls in a lot of classes (LWJGL, Netty, mixin, etc.)
 # that ProGuard can't fully resolve against a single rt.jar library set.
