@@ -33,7 +33,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(EntityPlayerSP.class)
 public abstract class MixinEntityPlayerSP extends AbstractClientPlayer {
-    @Shadow
+    @Shadow(remap = false)
     public int sprintingTicksLeft;
 
     public MixinEntityPlayerSP(World p_i45074_1_, GameProfile p_i45074_2_) {
@@ -41,52 +41,52 @@ public abstract class MixinEntityPlayerSP extends AbstractClientPlayer {
     }
 
     @Override
-    @Shadow
+    @Shadow(remap = false)
     public abstract void setSprinting(boolean p_setSprinting_1_);
-    @Shadow
+    @Shadow(remap = false)
     protected int sprintToggleTimer;
-    @Shadow
+    @Shadow(remap = false)
     public float prevTimeInPortal;
-    @Shadow
+    @Shadow(remap = false)
     public float timeInPortal;
-    @Shadow
+    @Shadow(remap = false)
     protected Minecraft mc;
-    @Shadow
+    @Shadow(remap = false)
     public MovementInput movementInput;
     @Override
-    @Shadow
+    @Shadow(remap = false)
     public abstract void sendPlayerAbilities();
-    @Shadow
+    @Shadow(remap = false)
     protected abstract boolean isCurrentViewEntity();
-    @Shadow
+    @Shadow(remap = false)
     public abstract boolean isRidingHorse();
-    @Shadow
+    @Shadow(remap = false)
     private int horseJumpPowerCounter;
-    @Shadow
+    @Shadow(remap = false)
     private float horseJumpPower;
-    @Shadow
+    @Shadow(remap = false)
     protected abstract void sendHorseJump();
-    @Shadow
+    @Shadow(remap = false)
     private boolean serverSprintState;
-    @Shadow
+    @Shadow(remap = false)
     @Final
     public NetHandlerPlayClient sendQueue;
     @Override
-    @Shadow
+    @Shadow(remap = false)
     public abstract boolean isSneaking();
-    @Shadow
+    @Shadow(remap = false)
     private boolean serverSneakState;
-    @Shadow
+    @Shadow(remap = false)
     private double lastReportedPosX;
-    @Shadow
+    @Shadow(remap = false)
     private double lastReportedPosY;
-    @Shadow
+    @Shadow(remap = false)
     private double lastReportedPosZ;
-    @Shadow
+    @Shadow(remap = false)
     private float lastReportedYaw;
-    @Shadow
+    @Shadow(remap = false)
     private float lastReportedPitch;
-    @Shadow
+    @Shadow(remap = false)
     private int positionUpdateTicks;
 
     @Inject(method = "onUpdate", at = @At("HEAD"), cancellable = true)

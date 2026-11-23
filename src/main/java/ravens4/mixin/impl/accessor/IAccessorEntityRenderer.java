@@ -12,33 +12,33 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @SideOnly(Side.CLIENT)
 @Mixin(EntityRenderer.class)
 public interface IAccessorEntityRenderer {
-    @Invoker("setupCameraTransform")
+    @Invoker(value = "setupCameraTransform", remap = false)
     void callSetupCameraTransform(float partialTicks, int pass);
 
-    @Invoker("loadShader")
+    @Invoker(value = "loadShader", remap = false)
     void callLoadShader(ResourceLocation resourceLocationIn);
 
-    @Accessor("shaderResourceLocations")
+    @Accessor(value = "shaderResourceLocations", remap = false)
     ResourceLocation[] getShaderResourceLocations();
 
-    @Accessor("useShader")
+    @Accessor(value = "useShader", remap = false)
     boolean getUseShader();
 
-    @Accessor("useShader")
+    @Accessor(value = "useShader", remap = false)
     void setUseShader(boolean useShader);
 
-    @Accessor("shaderIndex")
+    @Accessor(value = "shaderIndex", remap = false)
     int getShaderIndex();
 
-    @Accessor("shaderIndex")
+    @Accessor(value = "shaderIndex", remap = false)
     void setShaderIndex(int index);
 
-    @Accessor("thirdPersonDistance")
+    @Accessor(value = "thirdPersonDistance", remap = false)
     void setThirdPersonDistance(float distance);
 
-    @Accessor("pointedEntity")
+    @Accessor(value = "pointedEntity", remap = false)
     Entity getPointedEntity();
 
-    @Accessor("pointedEntity")
+    @Accessor(value = "pointedEntity", remap = false)
     void setPointedEntity(Entity entity);
 }

@@ -19,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @SideOnly(Side.CLIENT)
 @Mixin(MovementInputFromOptions.class)
 public class MixinMovementInputFromOptions extends MovementInput {
-    @Shadow
+    @Shadow(remap = false)
     @Final
     private GameSettings gameSettings;
 

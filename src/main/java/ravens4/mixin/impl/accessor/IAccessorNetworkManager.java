@@ -7,6 +7,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(NetworkManager.class)
 public interface IAccessorNetworkManager {
-    @Accessor("packetListener")
+    @Accessor(value = "packetListener", remap = false)
     INetHandler getPacketListener();
 }

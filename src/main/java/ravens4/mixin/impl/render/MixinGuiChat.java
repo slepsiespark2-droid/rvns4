@@ -35,13 +35,13 @@ public abstract class MixinGuiChat extends MixinGuiScreen {
     @Unique
     private String raven$previewScrollInput = "";
 
-    @Shadow
+    @Shadow(remap = false)
     protected GuiTextField inputField;
 
-    @Shadow
+    @Shadow(remap = false)
     private boolean waitingOnAutocomplete;
 
-    @Shadow
+    @Shadow(remap = false)
     public abstract void onAutocompleteResponse(String[] suggestions);
 
     @Inject(method = "keyTyped", at = @At("RETURN"))

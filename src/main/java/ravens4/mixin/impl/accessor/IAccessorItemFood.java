@@ -9,6 +9,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @SideOnly(Side.CLIENT)
 @Mixin(ItemFood.class)
 public interface IAccessorItemFood {
-    @Accessor("alwaysEdible")
+    @Accessor(value = "alwaysEdible", remap = false)
     boolean getAlwaysEdible();
 }

@@ -9,15 +9,15 @@ import org.spongepowered.asm.mixin.gen.*;
 @SideOnly(Side.CLIENT)
 @Mixin(EntityPlayerSP.class)
 public interface IAccessorEntityPlayerSP {
-    @Accessor("lastReportedPosX")
+    @Accessor(value = "lastReportedPosX", remap = false)
     double getLastReportedPosX();
 
-    @Accessor("lastReportedPosY")
+    @Accessor(value = "lastReportedPosY", remap = false)
     double getLastReportedPosY();
 
-    @Accessor("lastReportedPosZ")
+    @Accessor(value = "lastReportedPosZ", remap = false)
     double getLastReportedPosZ();
 
-    @Accessor("lastReportedYaw")
+    @Accessor(value = "lastReportedYaw", remap = false)
     float getLastReportedYaw();
 }

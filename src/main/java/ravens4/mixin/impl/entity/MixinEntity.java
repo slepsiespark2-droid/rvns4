@@ -24,11 +24,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Entity.class)
 public abstract class MixinEntity {
-    @Shadow
+    @Shadow(remap = false)
     public double motionX;
-    @Shadow
+    @Shadow(remap = false)
     public double motionZ;
-    @Shadow
+    @Shadow(remap = false)
     public float rotationYaw;
 
     @ModifyVariable(method = "moveEntity", at = @At(value = "STORE", ordinal = 0), name = "flag")

@@ -16,14 +16,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ItemRenderer.class)
 public class MixinItemRenderer implements IMixinItemRenderer {
     private ItemStack originalItemToRender;
-    @Shadow
+    @Shadow(remap = false)
     private ItemStack itemToRender;
     public boolean cancelUpdate = false;
     public boolean cancelReset = false;
     private boolean renderItemInUse;
-    @Shadow
+    @Shadow(remap = false)
     private float equippedProgress;
-    @Shadow
+    @Shadow(remap = false)
     private float prevEquippedProgress;
 
     @Inject(method = "renderItemInFirstPerson", at = @At("HEAD"))

@@ -6,12 +6,12 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(RenderManager.class)
 public interface IAccessorRenderManager {
-    @Accessor("renderPosX")
+    @Accessor(value = "renderPosX", remap = false)
     double getRenderPosX();
 
-    @Accessor("renderPosY")
+    @Accessor(value = "renderPosY", remap = false)
     double getRenderPosY();
 
-    @Accessor("renderPosZ")
+    @Accessor(value = "renderPosZ", remap = false)
     double getRenderPosZ();
 }

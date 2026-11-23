@@ -33,10 +33,10 @@ import java.awt.*;
 @SideOnly(Side.CLIENT)
 @Mixin(RendererLivingEntity.class)
 public abstract class MixinRendererLivingEntity<T extends EntityLivingBase> extends Render<T> {  // credit: pablolnmak
-    @Shadow
+    @Shadow(remap = false)
     protected boolean renderOutlines;
 
-    @Shadow
+    @Shadow(remap = false)
     protected abstract void unsetBrightness();
 
     protected MixinRendererLivingEntity(RenderManager renderManager) {

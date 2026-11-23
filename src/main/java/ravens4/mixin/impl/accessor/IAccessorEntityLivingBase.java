@@ -6,9 +6,9 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(EntityLivingBase.class)
 public interface IAccessorEntityLivingBase {
-    @Accessor("jumpTicks")
+    @Accessor(value = "jumpTicks", remap = false)
     void setJumpTicks(int ticks);
 
-    @Accessor("jumpTicks")
+    @Accessor(value = "jumpTicks", remap = false)
     int getJumpTicks();
 }

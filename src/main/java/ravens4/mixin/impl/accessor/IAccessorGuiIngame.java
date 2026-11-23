@@ -9,12 +9,12 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @SideOnly(Side.CLIENT)
 @Mixin(GuiIngame.class)
 public interface IAccessorGuiIngame {
-    @Accessor("recordPlaying")
+    @Accessor(value = "recordPlaying", remap = false)
     String getRecordPlaying();
 
-    @Accessor("displayedTitle")
+    @Accessor(value = "displayedTitle", remap = false)
     String getDisplayedTitle();
 
-    @Accessor("displayedSubTitle")
+    @Accessor(value = "displayedSubTitle", remap = false)
     String getDisplayedSubTitle();
 }

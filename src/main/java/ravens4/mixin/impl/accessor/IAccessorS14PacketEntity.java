@@ -6,6 +6,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(S14PacketEntity.class)
 public interface IAccessorS14PacketEntity {
-    @Accessor("entityId")
+    @Accessor(value = "entityId", remap = false)
     int getEntityId();
 }

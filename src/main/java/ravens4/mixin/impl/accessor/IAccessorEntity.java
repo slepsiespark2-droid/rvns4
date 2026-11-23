@@ -6,12 +6,12 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(Entity.class)
 public interface IAccessorEntity {
-    @Accessor("fire")
+    @Accessor(value = "fire", remap = false)
     int getFire();
 
-    @Accessor("nextStepDistance")
+    @Accessor(value = "nextStepDistance", remap = false)
     int getNextStepDistance();
 
-    @Accessor("isInWeb")
+    @Accessor(value = "isInWeb", remap = false)
     boolean getIsInWeb();
 }

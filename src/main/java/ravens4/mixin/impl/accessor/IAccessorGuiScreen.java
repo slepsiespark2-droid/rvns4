@@ -9,6 +9,6 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @SideOnly(Side.CLIENT)
 @Mixin(GuiScreen.class)
 public interface IAccessorGuiScreen {
-    @Invoker("mouseClicked")
+    @Invoker(value = "mouseClicked", remap = false)
     void callMouseClicked(int mouseX, int mouseY, int mouseButton);
 }

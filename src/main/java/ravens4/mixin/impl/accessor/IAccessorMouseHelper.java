@@ -9,9 +9,9 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @SideOnly(Side.CLIENT)
 @Mixin(MouseHelper.class)
 public interface IAccessorMouseHelper {
-    @Accessor("deltaX")
+    @Accessor(value = "deltaX", remap = false)
     int getDeltaX();
 
-    @Accessor("deltaY")
+    @Accessor(value = "deltaY", remap = false)
     int getDeltaY();
 }

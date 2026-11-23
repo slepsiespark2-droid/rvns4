@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @SideOnly(Side.CLIENT)
 @Mixin(World.class)
 public class MixinWorld {
-    @Shadow
+    @Shadow(remap = false)
     @Final
     public boolean isRemote;
 

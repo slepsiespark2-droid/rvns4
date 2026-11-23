@@ -10,9 +10,9 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @SideOnly(Side.CLIENT)
 @Mixin(GuiPlayerTabOverlay.class)
 public interface IAccessorGuiPlayerTabOverlay {
-    @Accessor("header")
+    @Accessor(value = "header", remap = false)
     IChatComponent getHeader();
 
-    @Accessor("footer")
+    @Accessor(value = "footer", remap = false)
     IChatComponent getFooter();
 }

@@ -6,6 +6,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(ItemRenderer.class)
 public interface IAccessorItemRenderer {
-    @Accessor("equippedProgress")
+    @Accessor(value = "equippedProgress", remap = false)
     float getEquippedProgress();
 }

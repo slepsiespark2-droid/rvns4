@@ -9,6 +9,6 @@ import java.util.List;
 
 @Mixin(GuiScreenBook.class)
 public interface IAccessorGuiScreenBook {
-    @Accessor("field_175386_A")
+    @Accessor(value = "field_175386_A", remap = false)
     List<IChatComponent> getBookContents();
 }

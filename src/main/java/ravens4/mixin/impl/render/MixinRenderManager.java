@@ -21,9 +21,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @SideOnly(Side.CLIENT)
 @Mixin(RenderManager.class)
 public class MixinRenderManager {
-    @Shadow
+    @Shadow(remap = false)
     private float playerViewX;
-    @Shadow
+    @Shadow(remap = false)
     private float playerViewY;
 
     @Unique

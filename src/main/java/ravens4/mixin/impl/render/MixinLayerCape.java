@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 @SideOnly(Side.CLIENT)
 @Mixin(LayerCape.class)
 public class MixinLayerCape {
-    @Shadow
+    @Shadow(remap = false)
     private final RenderPlayer playerRenderer;
 
     public MixinLayerCape(RenderPlayer playerRendererIn) {

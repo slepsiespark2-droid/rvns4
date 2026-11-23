@@ -14,13 +14,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(GuiScreen.class)
 public abstract class MixinGuiScreen {
-    @Shadow
+    @Shadow(remap = false)
     public Minecraft mc;
 
-    @Shadow
+    @Shadow(remap = false)
     public int width;
 
-    @Shadow
+    @Shadow(remap = false)
     public int height;
 
     @Inject(method = "sendChatMessage(Ljava/lang/String;Z)V", at = @At("HEAD"), cancellable = true)

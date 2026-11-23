@@ -31,7 +31,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(EntityRenderer.class)
 public class MixinEntityRenderer implements ISaturationRenderer {
 
-    @Shadow
+    @Shadow(remap = false)
     private ShaderGroup theShaderGroup;
 
     @Unique

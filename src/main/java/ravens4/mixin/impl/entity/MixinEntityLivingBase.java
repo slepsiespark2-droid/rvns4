@@ -30,21 +30,21 @@ public abstract class MixinEntityLivingBase extends Entity {
     }
 
     // NOTE: getActivePotionEffect(Potion) and isPotionActive(Potion) used to
-    // be declared here as @Shadow stubs. They are PUBLIC methods on vanilla
-    // EntityLivingBase, so @Shadow (meant for members not otherwise
+    // be declared here as @Shadow(remap = false) stubs. They are PUBLIC methods on vanilla
+    // EntityLivingBase, so @Shadow(remap = false) (meant for members not otherwise
     // reachable) isn't actually needed - it was failing refmap resolution
-    // at runtime ("@Shadow method a ... was not located in the target
+    // at runtime ("@Shadow(remap = false) method a ... was not located in the target
     // class"). Calling them via a direct cast to EntityLivingBase below
     // sidesteps that refmap lookup entirely, since at weave time `this`
     // genuinely IS an EntityLivingBase instance.
 
-    @Shadow
+    @Shadow(remap = false)
     public float rotationYawHead;
 
-    @Shadow
+    @Shadow(remap = false)
     public float renderYawOffset;
 
-    @Shadow
+    @Shadow(remap = false)
     public float swingProgress;
 
     @Inject(method = { "updateDistance", "func_110146_f" }, at = @At("HEAD"), cancellable = true)
@@ -84,7 +84,7 @@ public abstract class MixinEntityLivingBase extends Entity {
         cir.setReturnValue(p_110146_2_);
     }
 
-    @Shadow
+    @Shadow(remap = false)
     protected float getJumpUpwardsMotion() {
         return 0.42F;
     }

@@ -12,27 +12,27 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @SideOnly(Side.CLIENT)
 @Mixin(Minecraft.class)
 public interface IAccessorMinecraft {
-    @Accessor("timer")
+    @Accessor(value = "timer", remap = false)
     Timer getTimer();
 
-    @Accessor("myNetworkManager")
+    @Accessor(value = "myNetworkManager", remap = false)
     NetworkManager getMyNetworkManager();
 
-    @Accessor("rightClickDelayTimer")
+    @Accessor(value = "rightClickDelayTimer", remap = false)
     int getRightClickDelayTimer();
 
-    @Accessor("rightClickDelayTimer")
+    @Accessor(value = "rightClickDelayTimer", remap = false)
     void setRightClickDelayTimer(int delay);
 
-    @Accessor("leftClickCounter")
+    @Accessor(value = "leftClickCounter", remap = false)
     void setLeftClickCounter(int delay);
 
-    @Invoker("rightClickMouse")
+    @Invoker(value = "rightClickMouse", remap = false)
     void callRightClickMouse();
 
-    @Invoker("clickMouse")
+    @Invoker(value = "clickMouse", remap = false)
     void callClickMouse();
 
-    @Invoker("dispatchKeypresses")
+    @Invoker(value = "dispatchKeypresses", remap = false)
     void invokeDispatchKeypresses();
 }

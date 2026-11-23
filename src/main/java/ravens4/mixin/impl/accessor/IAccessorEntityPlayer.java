@@ -9,6 +9,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @SideOnly(Side.CLIENT)
 @Mixin(EntityPlayer.class)
 public interface IAccessorEntityPlayer {
-    @Accessor("itemInUseCount")
+    @Accessor(value = "itemInUseCount", remap = false)
     void setItemInUseCount(int count);
 }

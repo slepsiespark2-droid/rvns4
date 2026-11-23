@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 @Mixin(RenderGlobal.class)
 public class MixinRenderGlobal {
 
-    @Shadow
+    @Shadow(remap = false)
     @Final
     private Minecraft mc;
 

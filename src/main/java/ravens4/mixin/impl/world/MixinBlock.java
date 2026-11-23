@@ -17,7 +17,7 @@ import ravens4.bus.MinecraftForge;
 
 @Mixin(Block.class)
 public abstract class MixinBlock {
-    @Shadow
+    @Shadow(remap = false)
     public abstract AxisAlignedBB getCollisionBoundingBox(World worldIn, BlockPos pos, IBlockState state);
 
     @Overwrite
